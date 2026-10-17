@@ -20,9 +20,10 @@ pub struct MergeReport {
 pub fn merge(index: &mut EpisodeIndex, items: &[FeedItem]) -> MergeReport {
     let mut report = MergeReport { added: Vec::new(), updated: 0 };
     let mut fresh = Vec::new();
+    let incoming: HashSet<&str> = items.iter().map(|item| item.guid.as_str()).collect();
     let mut seen = HashSet::with_capacity(items.len());
     for item in items.iter().filter(|item| seen.insert(item.guid.as_str())) {
-        match known(index, item) {
+        match known(index, item, &incoming) {
             Some(episode) => report.updated += usize::from(refresh(episode, item)),
             None => fresh.push(item),
         }
@@ -39,14 +40,17 @@ pub fn merge(index: &mut EpisodeIndex, items: &[FeedItem]) -> MergeReport {
 }
 
 /// The indexed episode this item is: the one with its guid, or, for an item without a guid of
-/// its own, an episode whose id supercut made up (under any scheme it has used) released at the
-/// same time with the same title or the same audio path. Refreshing it moves it to the new id,
-/// so a title edit or a rotated token never duplicates an episode or strands its download.
-fn known<'a>(index: &'a mut EpisodeIndex, item: &FeedItem) -> Option<&'a mut Episode> {
+/// its own, an episode whose made-up id (under any scheme supercut has used) is no longer in the
+/// feed, released at the same time with the same title or the same audio path. That is a renamed
+/// id, not another episode: refreshing moves the episode to the new id, so a title edit or a
+/// rotated token never duplicates it or strands its download, and an episode the feed still
+/// carries is never taken over by a newcomer.
+fn known<'a>(index: &'a mut EpisodeIndex, item: &FeedItem, incoming: &HashSet<&str>) -> Option<&'a mut Episode> {
     let position = index.episodes.iter().position(|episode| episode.guid == item.guid).or_else(|| {
         item.guid.starts_with(FALLBACK_GUID_PREFIX).then_some(())?;
         index.episodes.iter().position(|episode| {
             made_up(episode)
+                && !incoming.contains(episode.guid.as_str())
                 && episode.published == item.published
                 && (episode.title == item.title || redacted(&episode.enclosure_url) == redacted(&item.enclosure_url))
         })
@@ -185,5 +189,20 @@ mod tests {
         let mut index = EpisodeIndex::default();
         let same_title = [guidless("Bonus", 1, "https://example.com/a.mp3"), guidless("Bonus", 1, "https://example.com/b.mp3")];
         assert_eq!(merge(&mut index, &same_title).added.len(), 2);
+    }
+
+    #[test]
+    fn a_same_titled_newcomer_on_a_later_sync_does_not_take_over_a_known_episode() {
+        let mut index = EpisodeIndex::default();
+        merge(&mut index, &[guidless("Bonus", 1, "https://example.com/a.mp3")]);
+        let id = index.episodes[0].id.clone();
+        index.episodes[0].audio_file = Some(format!("{id}.mp3"));
+        // The feed now carries a second "Bonus" released at the same moment.
+        let both = [guidless("Bonus", 1, "https://example.com/a.mp3"), guidless("Bonus", 1, "https://example.com/b.mp3")];
+        let report = merge(&mut index, &both);
+        assert_eq!(report.added.len(), 1, "{:?}", report.added);
+        let known = index.get(&id).unwrap();
+        assert_eq!(known.enclosure_url, "https://example.com/a.mp3");
+        assert_eq!(known.audio_file.as_deref(), Some(format!("{id}.mp3").as_str()));
     }
 }
