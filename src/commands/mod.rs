@@ -49,7 +49,7 @@ impl Context {
 /// Which episodes a command acts on.
 #[derive(clap::Args, Debug)]
 pub struct Selection {
-    /// Episode ids, as listed by `supercut episodes <show>`.
+    /// Episode ids, as listed by `supercut episodes list <show>`.
     pub ids: Vec<String>,
     /// Every episode the feed files under this season, bonus episodes included.
     #[arg(long, conflicts_with = "ids")]
