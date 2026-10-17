@@ -47,6 +47,9 @@ interstitial = "~/Music/supercut/example-show-interstitial.flac"
 # cuts each episode up to the end of the one it plays; a supercut's first episode is cut on to
 # the hosts' first words.
 themes = ["~/Music/supercut/example-show-theme.flac"]
+# Recordings of the first notes of the music that leads into the credits, cut from just after a
+# goodbye. `plans draft` cuts each episode from where one starts to the end of the file.
+outros = ["~/Music/supercut/example-show-outro.flac"]
 # Recordings of jingles that close some episodes, e.g. a bonus series' own sign-off. An episode
 # that ends with one keeps it, and no interstitial plays after that episode.
 bumpers = []

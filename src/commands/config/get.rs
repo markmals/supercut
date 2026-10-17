@@ -50,6 +50,8 @@ struct Show<'a> {
     interstitial: Option<&'a Path>,
     /// Theme songs and jingles whose end marks where each episode's opening cut ends.
     themes: &'a [std::path::PathBuf],
+    /// The first notes of the music leading into the credits; each episode is cut from there.
+    outros: &'a [std::path::PathBuf],
     /// Closing jingles: an episode ending with one keeps it and no interstitial follows it.
     bumpers: &'a [std::path::PathBuf],
     /// The segments `labels create` sorts episodes into; `cut` ones `plans draft` removes.
@@ -64,6 +66,7 @@ fn show<'a>(slug: &'a str, settings: &'a ShowConfig) -> Show<'a> {
         artwork: settings.artwork.as_deref(),
         interstitial: settings.interstitial.as_deref(),
         themes: &settings.themes,
+        outros: &settings.outros,
         bumpers: &settings.bumpers,
         segments: &settings.segments,
     }

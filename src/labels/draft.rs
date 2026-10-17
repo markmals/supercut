@@ -56,7 +56,11 @@ pub fn draft(
     also_cut: &AlsoCut,
 ) -> anyhow::Result<Draft> {
     let (show, library) = context.show(slug)?;
-    let recordings = Recordings { themes: Jingles::load(&show.themes)?, bumpers: Jingles::load(&show.bumpers)? };
+    let recordings = Recordings {
+        themes: Jingles::load(&show.themes)?,
+        outros: Jingles::load(&show.outros)?,
+        bumpers: Jingles::load(&show.bumpers)?,
+    };
     let mut planned = Vec::with_capacity(episodes.len());
     let mut low_confidence = Vec::new();
     let mut warnings = Vec::new();
@@ -73,12 +77,7 @@ pub fn draft(
         let dropped = Dropped { kinds: &show.segments, episode: &episode.id, also: also_cut };
         low_confidence.extend(uncertain_segments(&labels, &dropped));
         let drafted = plan_episode(&library, show, &recordings, episode, position == 0, &labels, also_cut)?;
-        if !recordings.themes.is_empty() && !drafted.opened_by_theme {
-            warnings.push(format!(
-                "{}: none of the show's themes plays in its opening, so its opening cut comes from the labels",
-                episode.id
-            ));
-        }
+        warnings.extend(unplaced(&recordings, &drafted, &episode.id));
         planned.push(drafted.episode);
     }
     let plan = Plan { show: slug.to_owned(), title, output, interstitial: None, episodes: planned };
@@ -96,12 +95,27 @@ pub fn plan_path(library: &ShowLibrary, output: &str, chosen: Option<PathBuf>) -
 /// The show's recurring recordings, decoded once for the whole draft.
 struct Recordings {
     themes: Jingles,
+    outros: Jingles,
     bumpers: Jingles,
 }
 
 struct Drafted {
     episode: PlanEpisode,
     opened_by_theme: bool,
+    /// An outro or a bumper ends the episode.
+    closed_by_recording: bool,
+}
+
+/// What the agent must place by hand: an opening or an ending no recording marks.
+fn unplaced(recordings: &Recordings, drafted: &Drafted, id: &str) -> Vec<String> {
+    let mut warnings = Vec::new();
+    if !recordings.themes.is_empty() && !drafted.opened_by_theme {
+        warnings.push(format!("{id}: none of the show's themes plays in its opening, so its opening cut comes from the labels"));
+    }
+    if !recordings.outros.is_empty() && !drafted.closed_by_recording {
+        warnings.push(format!("{id}: none of the show's outros or bumpers ends it, so its credits cut comes from the labels"));
+    }
+    warnings
 }
 
 fn plan_episode(
@@ -126,6 +140,10 @@ fn plan_episode(
         let end = opening::opening_end(theme, first_in_supercut, &envelope);
         cuts = opening::with_opening(cuts, theme, end);
     }
+    let outro = recordings.outros.outro_of(&audio, duration)?;
+    if let Some(outro) = &outro {
+        cuts = closing::with_outro(cuts, outro);
+    }
     let mut cuts = tidy(cuts, duration);
     let bumper = recordings.bumpers.ending_of(&audio, duration)?;
     if let Some(bumper) = &bumper {
@@ -134,7 +152,7 @@ fn plan_episode(
     let chapters = chapters(labels, &dropped, &cuts);
     let id = episode.id.clone();
     let episode = PlanEpisode { id, cuts, chapters, interstitial_after: bumper.is_none(), note: None };
-    Ok(Drafted { episode, opened_by_theme: theme.is_some() })
+    Ok(Drafted { episode, opened_by_theme: theme.is_some(), closed_by_recording: outro.is_some() || bumper.is_some() })
 }
 
 /// Which labels this episode loses, and how each one's edges are placed.

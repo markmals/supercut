@@ -53,7 +53,7 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "config get",
         effects: &[ReadOnly],
-        output: "{config_file, exists, library_dir, output_dir, sideload_dir, rules_dir, shows: [{show, title, feeds, artwork, interstitial, themes, bumpers, segments}], transcription, loudness, jev}",
+        output: "{config_file, exists, library_dir, output_dir, sideload_dir, rules_dir, shows: [{show, title, feeds, artwork, interstitial, themes, outros, bumpers, segments}], transcription, loudness, jev}",
         example: "supercut config get",
         keywords: &["context", "settings", "paths", "where", "library", "interstitial", "artwork", "segments", "show settings"],
     },
@@ -123,7 +123,7 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "episodes analyze",
         effects: &[WritesLibrary],
-        output: "[{id, duration, integrated_lufs, range_lu, bit_rate, sample_rate, channels, opening: {recording, start, end, score}|null, ending: {recording, start, end, score}|null}]; opening/ending absent when the show has no themes/bumpers",
+        output: "[{id, duration, integrated_lufs, range_lu, bit_rate, sample_rate, channels, theme, outro, bumper}]; each of theme/outro/bumper is {recording, start, end, score}, null when none plays, absent when the show configures none",
         example: "supercut episodes analyze the-neighborhood-listen s10e01",
         keywords: &["loudness", "levels", "measure", "lufs", "theme", "bumper", "jingle", "opening", "ending"],
     },

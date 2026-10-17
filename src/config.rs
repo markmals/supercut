@@ -113,6 +113,10 @@ pub struct ShowConfig {
     /// one that plays in its opening.
     #[serde(default)]
     pub themes: Vec<PathBuf>,
+    /// Recordings of the first notes of the music that leads into the credits (cut from just
+    /// after a goodbye). `plans draft` cuts each episode from where one starts to the end.
+    #[serde(default)]
+    pub outros: Vec<PathBuf>,
     /// Recordings of jingles that close some episodes (a bonus series' own sign-off). `plans
     /// draft` keeps one that ends an episode, and no interstitial follows that episode.
     #[serde(default)]
@@ -225,7 +229,7 @@ impl Config {
         for show in self.shows.values_mut() {
             expand_home(&mut show.artwork);
             expand_home(&mut show.interstitial);
-            for recording in show.themes.iter_mut().chain(show.bumpers.iter_mut()) {
+            for recording in show.themes.iter_mut().chain(show.outros.iter_mut()).chain(show.bumpers.iter_mut()) {
                 *recording = home_expanded(recording);
             }
         }

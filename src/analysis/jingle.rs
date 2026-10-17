@@ -15,7 +15,10 @@ const RATE: u32 = 11_025;
 /// How far into an episode its theme may end; a cold open can push it past three minutes.
 const OPENING_SECONDS: f64 = 300.0;
 /// How much of an episode's end is searched for a closing bumper.
-const ENDING_SECONDS: f64 = 30.0;
+const BUMPER_SECONDS: f64 = 30.0;
+/// How much of an episode's end is searched for its outro: the credits and the plug before them
+/// fit in well under this.
+const OUTRO_SECONDS: f64 = 180.0;
 /// Some files stop a few hundredths of a second before their bumper does; the search runs on
 /// past the end in silence so a clipped bumper still lines up.
 const PAST_THE_END_SECONDS: f64 = 0.5;
@@ -63,34 +66,42 @@ impl Jingles {
     /// The recording that plays in the episode's opening; when several do (a jingle before the
     /// theme proper), the one that ends last.
     pub fn opening_of(&self, audio: &Path) -> anyhow::Result<Option<JingleMatch>> {
-        if self.is_empty() {
-            return Ok(None);
-        }
-        let opening = decode_window(audio, 0.0, OPENING_SECONDS, RATE, 1)?;
-        Ok(self.best(&opening, 0.0, |a, b| a.end.total_cmp(&b.end)))
+        self.search(audio, 0.0, OPENING_SECONDS, |a, b| a.end.total_cmp(&b.end))
     }
 
     /// The recording the episode ends with: one that runs out at the end of the file.
     pub fn ending_of(&self, audio: &Path, duration: f64) -> anyhow::Result<Option<JingleMatch>> {
+        let found = self.search(audio, duration - BUMPER_SECONDS, duration, by_score)?;
+        let closes = |found: &JingleMatch| (duration - found.end).abs() <= CLOSES_WITHIN_SECONDS;
+        Ok(found.filter(closes).map(|found| JingleMatch { end: found.end.min(duration), ..found }))
+    }
+
+    /// The recording that plays in the episode's last minutes, wherever it falls there.
+    pub fn outro_of(&self, audio: &Path, duration: f64) -> anyhow::Result<Option<JingleMatch>> {
+        self.search(audio, duration - OUTRO_SECONDS, duration, by_score)
+    }
+
+    /// The preferred match among the recordings playing in `[from, to)` of the episode.
+    fn search(
+        &self,
+        audio: &Path,
+        from: f64,
+        to: f64,
+        prefer: impl Fn(&JingleMatch, &JingleMatch) -> std::cmp::Ordering,
+    ) -> anyhow::Result<Option<JingleMatch>> {
         if self.is_empty() {
             return Ok(None);
         }
-        let from = (duration - ENDING_SECONDS).max(0.0);
-        let mut ending = decode_window(audio, from, duration - from, RATE, 1)?;
-        ending.resize(ending.len() + (PAST_THE_END_SECONDS * f64::from(RATE)) as usize, 0.0);
-        let closes = |found: &JingleMatch| (duration - found.end).abs() <= CLOSES_WITHIN_SECONDS;
-        let found = self.best(&ending, from, |a, b| a.score.total_cmp(&b.score)).filter(closes);
-        Ok(found.map(|found| JingleMatch { end: found.end.min(duration), ..found }))
+        let from = from.max(0.0);
+        let mut window = decode_window(audio, from, to - from, RATE, 1)?;
+        window.resize(window.len() + (PAST_THE_END_SECONDS * f64::from(RATE)) as usize, 0.0);
+        let found = self.recordings.iter().filter_map(|(path, recording)| locate(path, recording, &window, from));
+        Ok(found.max_by(prefer))
     }
+}
 
-    fn best(
-        &self,
-        window: &[f32],
-        offset: f64,
-        prefer: impl Fn(&JingleMatch, &JingleMatch) -> std::cmp::Ordering,
-    ) -> Option<JingleMatch> {
-        self.recordings.iter().filter_map(|(path, recording)| locate(path, recording, window, offset)).max_by(prefer)
-    }
+fn by_score(a: &JingleMatch, b: &JingleMatch) -> std::cmp::Ordering {
+    a.score.total_cmp(&b.score)
 }
 
 fn locate(path: &Path, recording: &[f32], window: &[f32], offset: f64) -> Option<JingleMatch> {
