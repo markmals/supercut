@@ -1,4 +1,5 @@
 mod envelope;
+pub mod moment;
 
 use std::path::Path;
 use std::process::Command;

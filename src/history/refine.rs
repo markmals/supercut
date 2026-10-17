@@ -112,30 +112,30 @@ pub fn match_edge(frames: &[FrameMatch], inner: usize, outward: isize) -> usize 
     if outward < 0 { last_matched } else { last_matched + 1 }
 }
 
-/// Frames between the edge and the point where the gain settles at `steady_gain`: the fade
-/// length. `edge` is the first frame inside the stretch (fade-in) or one past its last frame
-/// (fade-out, walked backwards).
+/// Frames from the edge through the last frame the export plays quieter than `steady_gain`
+/// before the gain settles: the fade length. Silence right at the edge is not a fade. `edge` is
+/// the first frame inside the stretch (fade-in) or one past its last frame (fade-out, walked
+/// backwards).
 pub fn fade_frames(frames: &[FrameMatch], edge: usize, inward: isize, steady_gain: f32) -> usize {
     let mut steady_run = 0;
+    let mut fade = 0;
     let mut index = if inward > 0 { edge as isize } else { edge as isize - 1 };
     let mut walked = 0;
-    while index >= 0 && (index as usize) < frames.len() {
+    while index >= 0 && (index as usize) < frames.len() && steady_run < STEADY_FRAMES {
         if let FrameMatch::Matched { gain } = frames[index as usize]
             && gain.is_finite()
         {
             if gain >= steady_gain * STEADY_RATIO {
                 steady_run += 1;
-                if steady_run >= STEADY_FRAMES {
-                    return walked + 1 - steady_run;
-                }
             } else {
                 steady_run = 0;
+                fade = walked + 1;
             }
         }
         walked += 1;
         index += inward;
     }
-    walked
+    fade
 }
 
 /// The typical export/source gain over a stretch of matching frames.
@@ -197,5 +197,18 @@ mod tests {
         let gain = steady_gain(&frames[..60]).unwrap();
         let fade = fade_frames(&frames, edge, -1, gain);
         assert!(fade.abs_diff(30) <= 4, "fade frames {fade}");
+    }
+
+    #[test]
+    fn silence_at_a_hard_cut_is_not_a_fade() {
+        // Both recordings open with 0.5 s of silence, then play the same audio at a 6 dB lower
+        // level in the export: the edge has no fade even though the steady gain arrives late.
+        let mut source = vec![0.0f32; 5_500];
+        source.extend(signal(5, 11_000));
+        let export: Vec<f32> = source.iter().map(|sample| sample * 0.5).collect();
+        let frames = compare_frames(&export, &source);
+        let gain = steady_gain(&frames).unwrap();
+        assert!((gain - 0.5).abs() < 0.01, "{gain}");
+        assert_eq!(fade_frames(&frames, 0, 1, gain), 0);
     }
 }

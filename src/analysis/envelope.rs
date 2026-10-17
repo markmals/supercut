@@ -8,6 +8,9 @@ pub const FRAME_SECONDS: f64 = 0.01;
 /// Level floor, in dBFS, for digital silence.
 const FLOOR_DB: f32 = -100.0;
 
+/// Absorbs floating-point error so times on a frame boundary map to that frame.
+const ROUNDING: f64 = 1e-6;
+
 /// RMS level of the mono mix in consecutive 10 ms frames, in dBFS.
 pub struct Envelope {
     levels_db: Vec<f32>,
@@ -34,7 +37,14 @@ impl Envelope {
     }
 
     pub fn frame_at(&self, time: f64) -> usize {
-        ((time / FRAME_SECONDS).floor().max(0.0) as usize).min(self.levels_db.len().saturating_sub(1))
+        ((time / FRAME_SECONDS + ROUNDING).floor().max(0.0) as usize).min(self.levels_db.len().saturating_sub(1))
+    }
+
+    /// Frames covering `[start, end)`; at least one frame.
+    fn frames_in(&self, start: f64, end: f64) -> std::ops::Range<usize> {
+        let first = self.frame_at(start);
+        let last = ((end / FRAME_SECONDS - ROUNDING).ceil().max(0.0) as usize).clamp(first + 1, self.levels_db.len().max(first + 1));
+        first..last
     }
 
     pub fn time_of(frame: usize) -> f64 {
@@ -48,20 +58,19 @@ impl Envelope {
 
     /// Energy-averaged level over `[start, end)`.
     pub fn mean_db(&self, start: f64, end: f64) -> f32 {
-        let (first, last) = (self.frame_at(start), self.frame_at(end.max(start + FRAME_SECONDS)));
-        let frames = &self.levels_db[first..=last.max(first)];
+        let frames = &self.levels_db[self.frames_in(start, end)];
         let energy: f64 = frames.iter().map(|db| 10f64.powf(f64::from(*db) / 10.0)).sum::<f64>() / frames.len() as f64;
         if energy <= 0.0 { FLOOR_DB } else { (10.0 * energy.log10()) as f32 }
     }
 
     /// Spans inside `[start, end)` that stay below `threshold_db` for at least `min_seconds`.
     pub fn quiet_spans(&self, start: f64, end: f64, threshold_db: f32, min_seconds: f64) -> Vec<(f64, f64)> {
-        let (first, last) = (self.frame_at(start), self.frame_at(end));
+        let frames = self.frames_in(start, end);
         let min_frames = (min_seconds / FRAME_SECONDS).ceil() as usize;
         let mut spans = Vec::new();
         let mut run_start = None;
-        for frame in first..=last {
-            let quiet = self.levels_db[frame] < threshold_db;
+        for frame in frames.clone().chain(std::iter::once(frames.end)) {
+            let quiet = frame < frames.end && self.levels_db[frame] < threshold_db;
             match (quiet, run_start) {
                 (true, None) => run_start = Some(frame),
                 (false, Some(begin)) => {
@@ -72,11 +81,6 @@ impl Envelope {
                 }
                 _ => {}
             }
-        }
-        if let Some(begin) = run_start
-            && last + 1 - begin >= min_frames
-        {
-            spans.push((Self::time_of(begin), Self::time_of(last + 1)));
         }
         spans
     }
