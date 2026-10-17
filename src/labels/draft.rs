@@ -166,14 +166,21 @@ impl Dropped<'_> {
 
 fn cuts(labels: &Labels, dropped: &Dropped<'_>, gaps: &[Gap], spoken: &[Spoken], envelope: &Envelope) -> Vec<Cut> {
     let mut cuts: Vec<Cut> = Vec::new();
-    for segment in labels.segments.iter().filter(|segment| dropped.cut(segment)) {
+    let last = labels.segments.len().saturating_sub(1);
+    for (index, segment) in labels.segments.iter().enumerate().filter(|(_, segment)| dropped.cut(segment)) {
         let bounds = (segment.start.seconds(), segment.end.seconds());
         let search = Search {
             around_start: neighbourhood(&labels.units, bounds.0),
             around_end: neighbourhood(&labels.units, bounds.1),
         };
         let anchors = dropped.anchors(&segment.label, bounds, spoken);
-        let edges = refine::refine(bounds, dropped.policy(&segment.label), anchors, search, gaps, envelope);
+        let mut edges = refine::refine(bounds, dropped.policy(&segment.label), anchors, search, gaps, envelope);
+        // Nothing follows the episode's last segment for its end edge to spare: a word heard
+        // inside it (Whisper hears "you" in closing music) is not the hosts coming back.
+        if index == last {
+            edges.end = edges.end.max(bounds.1);
+            edges.fade_in = None;
+        }
         let reason = format!("segment {} (p={:.2})", segment.label, segment.probability);
         let start = match cuts.last().and_then(|last| last.end) {
             Some(previous) => edges.start.max(previous.seconds()),
