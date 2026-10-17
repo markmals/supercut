@@ -1,0 +1,64 @@
+# supercut configuration. Paths may start with `~`.
+# Editorial rules per show are Markdown files in `rules/<slug>.md` next to this file.
+
+# Downloaded episodes, transcripts, analysis and plans. Defaults to the platform data folder
+# (`~/Library/Application Support/supercut/library` on macOS).
+# library_dir = "~/Media/supercut"
+
+# Where rendered supercuts go, one folder per show. `render` needs this.
+output_dir = "~/Music/Supercuts"
+
+# Podcast app folder that `render --sideload` copies finished supercuts into.
+# sideload_dir = "~/Library/Mobile Documents/iCloud~co~supertop~castro/Documents/Sideloads"
+
+[transcription]
+# "mlx-whisper" (Apple silicon) or "whisper-cpp".
+engine = "mlx-whisper"
+# mlx-whisper: a Hugging Face repo or a model folder. whisper.cpp: a ggml model file.
+model = "mlx-community/whisper-large-v3-turbo"
+language = "en"
+
+[loudness]
+# Integrated loudness every episode is brought to before stitching.
+target_lufs = -16.0
+# Ceiling for the true-peak limiter, in dBTP.
+true_peak_db = -1.5
+
+[jev]
+# The decision model that labels transcript windows.
+endpoint = "https://api.typesafe.ai/v1/systemone"
+model = "jev-1.13.0"
+# Command that prints the API key. The TYPESAFE_API_KEY environment variable wins over it.
+api_key_command = ["op", "read", "op://Personal/TypeSafe/api-key"]
+# Requests in flight at once.
+concurrency = 8
+
+# One section per show. The key is the slug every command takes.
+[shows.example-show]
+title = "Example Show"
+# Feeds are read in order; an episode in several of them keeps the first feed's copy. A private
+# feed's auth token stays in the URL, and supercut never prints it.
+feeds = ["https://example.com/feed.xml"]
+# Cover art embedded in rendered supercuts.
+artwork = "~/Pictures/supercut/example-show.jpg"
+# Clip played between episodes.
+interstitial = "~/Music/supercut/example-show-interstitial.mp3"
+
+# The show's recurring segments. `label` sorts every stretch of an episode into one of these,
+# and `draft` turns them into cuts and chapters. Write `describe` for the classifier: say what
+# the segment sounds like.
+[[shows.example-show.segments]]
+label = "intro"
+title = "Intro"
+describe = "The recorded welcome and the theme song, before the hosts start talking."
+
+[[shows.example-show.segments]]
+label = "hosts"
+title = "Hosts"
+describe = "The hosts talking to each other, with no guest present."
+
+[[shows.example-show.segments]]
+label = "ads"
+title = "Ads"
+describe = "Read or produced advertising, usually with a jingle around it."
+cut = true
