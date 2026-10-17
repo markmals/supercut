@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::process::Command;
 use std::sync::Arc;
 
-use anyhow::{Context as _, ensure};
+use anyhow::Context as _;
 use jev_driver::prelude::{
     Answers, BuiltQuestion, Decision, DynChoice, Instructions, JevClient, JevConfig, JevError,
 };
@@ -160,22 +160,19 @@ fn api_key(settings: &JevSettings) -> anyhow::Result<String> {
     {
         return Ok(key.trim().to_owned());
     }
-    let (program, arguments) = settings.api_key_command.split_first().with_context(|| {
-        format!("no Jev API key: set {API_KEY_VARIABLE} or `jev.api_key_command` in the config")
+    let (program, arguments) = settings.api_key_command.split_first().ok_or_else(|| {
+        CliError::new(ErrorCode::Unauthenticated, "no Jev API key")
+            .hint(format!("set {API_KEY_VARIABLE} or `jev.api_key_command` in the config"))
     })?;
     let output = Command::new(program)
         .args(arguments)
         .output()
         .with_context(|| format!("running `{program}` for the Jev API key"))?;
-    ensure!(
-        output.status.success(),
-        "`{program}` could not read the Jev API key: {}",
-        String::from_utf8_lossy(&output.stderr).trim()
-    );
-    let key = String::from_utf8(output.stdout)
-        .with_context(|| format!("`{program}` printed a Jev API key that is not text"))?
-        .trim()
-        .to_owned();
-    ensure!(!key.is_empty(), "`{program}` printed no Jev API key");
+    let key = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    if !output.status.success() || key.is_empty() {
+        let message = format!("`{program}` could not read the Jev API key: {}", String::from_utf8_lossy(&output.stderr).trim());
+        let hint = format!("unlock the password manager and retry, or set {API_KEY_VARIABLE} for this run");
+        return Err(CliError::new(ErrorCode::Unauthenticated, message).hint(hint).into());
+    }
     Ok(key)
 }
