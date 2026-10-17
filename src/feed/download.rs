@@ -4,7 +4,7 @@ use std::path::Path;
 
 use anyhow::Context as _;
 
-use super::fetch::{agent, redacted};
+use super::fetch::{agent, redacted, request_error};
 use crate::library::{Episode, ShowLibrary, partial_path};
 
 const BUFFER_BYTES: usize = 256 * 1024;
@@ -21,10 +21,7 @@ pub struct Download {
 /// renamed once the download finishes, so an interrupted run leaves no half episode behind.
 pub fn download(library: &ShowLibrary, episode: &Episode) -> anyhow::Result<Download> {
     let url = &episode.enclosure_url;
-    let mut response = agent()
-        .get(url)
-        .call()
-        .with_context(|| format!("fetching {}", redacted(url)))?;
+    let mut response = agent().get(url).call().map_err(|error| request_error(url, &error))?;
     let total = response.body().content_length();
     let file = format!("{}.{}", episode.id, extension(response.body().mime_type(), url));
 
@@ -40,6 +37,12 @@ pub fn download(library: &ShowLibrary, episode: &Episode) -> anyhow::Result<Down
         .with_context(|| format!("moving {} into place", destination.display()))?;
     eprintln!("{}: saved {} ({})", episode.id, file, size(Some(bytes)));
     Ok(Download { file, bytes })
+}
+
+/// What `download` would call the file, judged from the URL alone: the served content type can
+/// still name a different format.
+pub fn planned_file(episode: &Episode) -> String {
+    format!("{}.{}", episode.id, extension(None, &episode.enclosure_url))
 }
 
 fn write_file(reader: &mut impl Read, path: &Path, id: &str, total: Option<u64>) -> anyhow::Result<u64> {

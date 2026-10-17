@@ -4,6 +4,7 @@ use std::path::Path;
 use anyhow::Context as _;
 use serde::Deserialize;
 
+use crate::error::{CliError, ErrorCode};
 use crate::media;
 
 /// The title an audio file claims for itself, read from its own tags.
@@ -50,7 +51,8 @@ fn ffprobe_title(path: &Path) -> anyhow::Result<Option<String>> {
             OsStr::new("json"),
             path.as_os_str(),
         ],
-    )?;
+    )
+    .map_err(|error| CliError::new(ErrorCode::ExternalTool, format!("{error:#}")))?;
     let report: Report = serde_json::from_slice(&output.stdout)
         .with_context(|| format!("reading the tags of {}", path.display()))?;
     Ok(report.format.tags.title)

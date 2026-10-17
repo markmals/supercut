@@ -12,9 +12,8 @@ mod tags;
 mod text;
 mod walk;
 
-pub use adopt::{AdoptReport, adopt};
-pub use download::{Download, download};
+pub use adopt::adopt;
+pub use download::{download, planned_file};
 pub use fetch::{fetch, redacted};
-pub use item::FeedItem;
-pub use merge::{MergeReport, merge};
-pub use status::{EpisodeStatus, existing_audio, has_audio, statuses};
+pub use merge::merge;
+pub use status::{Counts, counts, detail, existing_audio, statuses};

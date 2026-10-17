@@ -7,6 +7,7 @@ use serde::Serialize;
 use super::status::has_audio;
 use super::text::normalize_title;
 use super::{tags, walk};
+use crate::error::{CliError, ErrorCode};
 use crate::library::{Episode, EpisodeIndex, ShowLibrary};
 use crate::media;
 
@@ -59,6 +60,10 @@ pub fn adopt(
     dir: &Path,
     dry_run: bool,
 ) -> anyhow::Result<AdoptReport> {
+    if !dir.is_dir() {
+        let error = CliError::not_found(format!("{} is not a folder", dir.display()));
+        return Err(error.detail("path", dir.display().to_string()).into());
+    }
     let wanted = episodes_wanting_audio(library, index);
     let mut report = AdoptReport::default();
     let files = files_by_title(&walk::audio_files(dir)?, &mut report)?;
@@ -66,7 +71,7 @@ pub fn adopt(
     for (title, files) in files {
         let positions = wanted.get(&title).map(Vec::as_slice).unwrap_or_default();
         if positions.is_empty() {
-            report.unmatched_files.extend(files.iter().map(shown));
+            report.unmatched_files.extend(files.iter().map(|file| shown(file)));
             continue;
         }
         if positions.len() > 1 || files.len() > 1 {
@@ -120,7 +125,7 @@ fn adopt_one(
     file: &Path,
     dry_run: bool,
 ) -> anyhow::Result<Result<Method, String>> {
-    let duration = media::probe(file)?.duration;
+    let duration = probe_duration(file)?;
     if let Some(reason) = wrong_length(duration, episode.feed_duration) {
         return Ok(Err(reason));
     }
@@ -133,6 +138,12 @@ fn adopt_one(
     let method = link_or_copy(file, &audio_dir.join(&name))?;
     episode.audio_file = Some(name);
     Ok(Ok(method))
+}
+
+fn probe_duration(file: &Path) -> anyhow::Result<f64> {
+    media::probe(file)
+        .map(|probe| probe.duration)
+        .map_err(|error| CliError::new(ErrorCode::ExternalTool, format!("{error:#}")).into())
 }
 
 fn wrong_length(duration: f64, feed_duration: Option<f64>) -> Option<String> {
@@ -172,7 +183,7 @@ fn extension(file: &Path) -> String {
         .unwrap_or_else(|| "mp3".to_owned())
 }
 
-fn shown(file: &PathBuf) -> String {
+fn shown(file: &Path) -> String {
     file.display().to_string()
 }
 
