@@ -54,13 +54,11 @@ fn chapters_round_trip_through_the_file() {
     assert_eq!(tag.title(), Some("NHL S10 part 1"));
     assert_eq!(tag.album(), Some("The Neighborhood Listen"));
 
-    let top = tag.tables_of_contents().find(|contents| contents.top_level).unwrap();
-    assert!(top.ordered);
-    assert_eq!(top.elements, vec!["ep01".to_string(), "ep02".to_string()]);
-
-    let episode = tag.tables_of_contents().find(|contents| contents.element_id == "ep01").unwrap();
-    assert_eq!(episode.elements, vec!["ep01c01".to_string(), "ep01c02".to_string()]);
-    assert_eq!(title_of(&episode.frames), Some("a title"));
+    // A player that reads only the first table of contents must still find every episode.
+    let tables: Vec<_> = tag.tables_of_contents().collect();
+    assert_eq!(tables.len(), 1, "one table, so the first table is the whole list");
+    assert!(tables[0].top_level && tables[0].ordered);
+    assert_eq!(tables[0].elements, ["ep01c01", "ep01c02", "ep02"]);
 
     let chapters: Vec<(&str, u32, u32, Option<&str>)> = tag
         .chapters()
@@ -71,8 +69,8 @@ fn chapters_round_trip_through_the_file() {
     assert_eq!(
         chapters,
         vec![
-            ("ep01c01", 0, 30_000, Some("a title - Intro")),
-            ("ep01c02", 30_000, 60_000, Some("a title - Guest")),
+            ("ep01c01", 0, 30_000, Some("Intro: a title")),
+            ("ep01c02", 30_000, 60_000, Some("Guest: a title")),
             ("ep02", 60_000, 90_000, Some("b title")),
         ]
     );

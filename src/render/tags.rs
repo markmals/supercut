@@ -17,7 +17,7 @@ pub struct Tags<'a> {
     pub episodes: &'a [EpisodeSpan],
 }
 
-/// Replaces the file's tags: titles, cover art and the chapter tree.
+/// Replaces the file's tags: titles, cover art and the chapters.
 ///
 /// ID3v2.3, not 2.4, because of the frames nested inside CHAP and CTOC: ffmpeg — and every
 /// player built on it — reads their lengths as plain 32-bit integers, so a 2.4 tag loses any
@@ -35,13 +35,13 @@ pub fn write(path: &Path, tags: &Tags) -> anyhow::Result<usize> {
     Ok(chapters)
 }
 
-/// One top-level entry per episode: its own table of contents when it has segment chapters,
-/// otherwise a single chapter. Every chapter frame comes before the tables that group them,
-/// because ffmpeg stops collecting chapters at the first table of contents it meets.
-/// Returns how many chapters were written.
+/// Every chapter in one ordered, top-level table of contents, and no other table: Castro reads
+/// only the first table it meets, so a table per episode showed just the first episode's
+/// chapters. Each episode keeps its place through its chapters' titles and its first chapter's
+/// show notes. The chapter frames come before the table because ffmpeg stops collecting chapters
+/// at the first table of contents it meets. Returns how many chapters were written.
 fn add_chapters(tag: &mut Tag, episodes: &[EpisodeSpan]) -> usize {
     let mut chapters = Vec::new();
-    let mut tables = Vec::new();
     let mut entries = Vec::new();
     for (index, span) in episodes.iter().enumerate() {
         let id = format!("ep{:02}", index + 1);
@@ -50,31 +50,28 @@ fn add_chapters(tag: &mut Tag, episodes: &[EpisodeSpan]) -> usize {
             entries.push(id);
             continue;
         }
-        let mut children = Vec::new();
         for (position, segment) in span.chapters.iter().enumerate() {
             let child = format!("{id}c{:02}", position + 1);
             let title = segment_title(span, &segment.title);
             chapters.push(chapter(&child, segment.start, segment.end, &title, segment.description.as_deref()));
-            children.push(child);
+            entries.push(child);
         }
-        let about = vec![text("TIT2", &span.title), text("TIT3", &span.description)];
-        tables.push(contents(&id, false, children, about));
-        entries.push(id);
     }
-    tables.push(contents("toc", true, entries, Vec::new()));
-
     let written = chapters.len();
-    for frame in chapters.into_iter().chain(tables) {
+    for frame in chapters {
         tag.add_frame(frame);
     }
+    tag.add_frame(contents("toc", entries));
     written
 }
 
-/// Flat chapter readers show no hierarchy, so every chapter names its episode.
+/// Chapter readers show no hierarchy, so every chapter names its episode, after its segment:
+/// Castro's chapter list cuts a title off at about 35 characters, which left an episode's
+/// chapters all reading the same when the episode title came first.
 fn segment_title(span: &EpisodeSpan, title: &str) -> String {
     match title == span.title {
         true => span.title.clone(),
-        false => format!("{} - {title}", span.title),
+        false => format!("{title}: {}", span.title),
     }
 }
 
@@ -94,8 +91,8 @@ fn chapter(id: &str, start: f64, end: f64, title: &str, description: Option<&str
     Frame::with_content("CHAP", Content::Chapter(chapter))
 }
 
-fn contents(id: &str, top_level: bool, elements: Vec<String>, frames: Vec<Frame>) -> Frame {
-    let contents = TableOfContents { element_id: id.to_string(), top_level, ordered: true, elements, frames };
+fn contents(id: &str, elements: Vec<String>) -> Frame {
+    let contents = TableOfContents { element_id: id.to_string(), top_level: true, ordered: true, elements, frames: Vec::new() };
     Frame::with_content("CTOC", Content::TableOfContents(contents))
 }
 
