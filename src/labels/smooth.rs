@@ -1,36 +1,46 @@
-//! Smoothing one answer per window into contiguous segments: a Viterbi pass that prices every
-//! change of segment, so a single odd window does not become a segment of its own.
+//! Smoothing one answer per unit into contiguous segments: a Viterbi pass that prices every
+//! change of segment, so a single odd unit does not become a segment of its own.
+//!
+//! Units come at two scales — ~30 s windows and single utterances — so each one's answer counts
+//! for what it covers: a three-second line cannot move a boundary on its own, a run of them can.
 
-use crate::labels::record::{LabeledSegment, LabeledWindow};
+use crate::labels::record::{LabeledSegment, LabeledUnit};
 use crate::timecode::Time;
 
-/// Probability floor under an emission, so one certain-looking window cannot dominate the path.
+/// Probability floor under an emission, so one certain-looking unit cannot dominate the path.
 const PROBABILITY_FLOOR: f64 = 0.001;
-/// What changing segment between neighbouring windows costs, in log probability. A segment a
+/// What changing segment between neighbouring units costs, in log probability. A segment one
 /// window wide has to beat two of these, a classified ad two windows long only one.
 const SWITCH_PENALTY: f64 = 1.0;
+/// The unit length a full vote is worth: one coarse window.
+const FULL_VOTE_SECONDS: f64 = 30.0;
+/// The smallest vote any unit gets, however short it is. Four strongly-labeled utterances then
+/// carry a boundary, which is what a 15 s bonus-room preamble needs.
+const LEAST_VOTE: f64 = 0.25;
 
-/// The segments `windows` smooth into, covering `0..duration` without gaps.
-pub fn segments(windows: &[LabeledWindow], labels: &[String], duration: f64) -> Vec<LabeledSegment> {
-    if windows.is_empty() || labels.is_empty() {
+/// The segments `units` smooth into, covering `0..duration` without gaps.
+pub fn segments(units: &[LabeledUnit], labels: &[String], duration: f64) -> Vec<LabeledSegment> {
+    if units.is_empty() || labels.is_empty() {
         return Vec::new();
     }
-    let emissions: Vec<Vec<f64>> = windows.iter().map(|window| emission(window, labels)).collect();
+    let emissions: Vec<Vec<f64>> = units.iter().map(|unit| emission(unit, labels)).collect();
     let path = best_path(&emissions);
-    runs(&path, windows, labels, duration)
+    runs(&path, units, labels, duration)
 }
 
-fn emission(window: &LabeledWindow, labels: &[String]) -> Vec<f64> {
+/// One unit's log-probabilities, scaled by how much of the episode it speaks for.
+fn emission(unit: &LabeledUnit, labels: &[String]) -> Vec<f64> {
+    let vote = (unit.seconds() / FULL_VOTE_SECONDS).clamp(LEAST_VOTE, 1.0);
     labels
         .iter()
         .map(|label| {
-            let probability = window.probabilities.get(label).copied().unwrap_or(0.0);
-            probability.max(PROBABILITY_FLOOR).ln()
+            let probability = unit.probabilities.get(label).copied().unwrap_or(0.0);
+            vote * probability.max(PROBABILITY_FLOOR).ln()
         })
         .collect()
 }
 
-/// The highest-scoring label for every window, given the switch penalty.
+/// The highest-scoring label for every unit, given the switch penalty.
 fn best_path(emissions: &[Vec<f64>]) -> Vec<usize> {
     let states = emissions[0].len();
     let mut scores = emissions[0].clone();
@@ -56,7 +66,7 @@ fn best_source(scores: &[f64], state: usize) -> (f64, usize) {
             (scores[source] - penalty, source)
         })
         .reduce(|best, candidate| if candidate.0 > best.0 { candidate } else { best })
-        .expect("a window carries at least one label")
+        .expect("a unit carries at least one label")
 }
 
 fn backtrack(scores: &[f64], previous: &[Vec<usize>]) -> Vec<usize> {
@@ -72,12 +82,12 @@ fn backtrack(scores: &[f64], previous: &[Vec<usize>]) -> Vec<usize> {
 fn argmax(scores: &[f64]) -> usize {
     (0..scores.len())
         .reduce(|best, candidate| if scores[candidate] > scores[best] { candidate } else { best })
-        .expect("a window carries at least one label")
+        .expect("a unit carries at least one label")
 }
 
 fn runs(
     path: &[usize],
-    windows: &[LabeledWindow],
+    units: &[LabeledUnit],
     labels: &[String],
     duration: f64,
 ) -> Vec<LabeledSegment> {
@@ -87,32 +97,32 @@ fn runs(
         if index < path.len() && path[index] == path[begin] {
             continue;
         }
-        let members = &windows[begin..index];
+        let members = &units[begin..index];
         let label = &labels[path[begin]];
         segments.push(LabeledSegment {
             label: label.clone(),
-            start: Time(if begin == 0 { 0.0 } else { gap_middle(&windows[begin - 1], &windows[begin]) }),
-            end: Time(match windows.get(index) {
-                Some(next) => gap_middle(&windows[index - 1], next),
+            start: Time(if begin == 0 { 0.0 } else { gap_middle(&units[begin - 1], &units[begin]) }),
+            end: Time(match units.get(index) {
+                Some(next) => gap_middle(&units[index - 1], next),
                 None => duration.max(members[members.len() - 1].end.seconds()),
             }),
             probability: mean_probability(members, label),
-            min_confidence: members.iter().map(|window| window.confidence).fold(1.0, f64::min),
+            min_confidence: members.iter().map(|unit| unit.confidence).fold(1.0, f64::min),
         });
         begin = index;
     }
     segments
 }
 
-/// The middle of the wordless gap between two windows: where a segment changes.
-fn gap_middle(before: &LabeledWindow, after: &LabeledWindow) -> f64 {
+/// The middle of the wordless gap between two units: where a segment changes.
+fn gap_middle(before: &LabeledUnit, after: &LabeledUnit) -> f64 {
     (before.end.seconds() + after.start.seconds()) / 2.0
 }
 
-fn mean_probability(windows: &[LabeledWindow], label: &str) -> f64 {
+fn mean_probability(units: &[LabeledUnit], label: &str) -> f64 {
     let total: f64 =
-        windows.iter().map(|window| window.probabilities.get(label).copied().unwrap_or(0.0)).sum();
-    total / windows.len() as f64
+        units.iter().map(|unit| unit.probabilities.get(label).copied().unwrap_or(0.0)).sum();
+    total / units.len() as f64
 }
 
 #[cfg(test)]
@@ -120,7 +130,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::segments;
-    use crate::labels::record::LabeledWindow;
+    use crate::labels::record::LabeledUnit;
     use crate::timecode::Time;
 
     fn labels() -> Vec<String> {
@@ -129,7 +139,7 @@ mod tests {
 
     /// Windows 30 s apart with a 1 s gap between them, `classified` carrying `odds` in the
     /// windows named by `odd_ones` and 0.1 everywhere else.
-    fn windows(count: usize, odd_ones: &[usize], odds: f64) -> Vec<LabeledWindow> {
+    fn windows(count: usize, odd_ones: &[usize], odds: f64) -> Vec<LabeledUnit> {
         (0..count)
             .map(|index| {
                 let classified = if odd_ones.contains(&index) { odds } else { 0.1 };
@@ -137,7 +147,7 @@ mod tests {
                     ("hosts".to_owned(), 1.0 - classified),
                     ("classified".to_owned(), classified),
                 ]);
-                LabeledWindow {
+                LabeledUnit {
                     start: Time(index as f64 * 31.0),
                     end: Time(index as f64 * 31.0 + 30.0),
                     selected: if classified > 0.5 { "classified".into() } else { "hosts".into() },
@@ -179,5 +189,59 @@ mod tests {
     fn a_fairly_confident_single_window_still_loses_to_its_neighbours() {
         let smoothed = segments(&windows(6, &[2], 0.85), &labels(), 190.0);
         assert_eq!(smoothed.len(), 1, "one window has to pay for two switches");
+    }
+
+    fn names() -> Vec<String> {
+        ["preamble", "hosts", "classified"].map(ToOwned::to_owned).to_vec()
+    }
+
+    /// A unit of `seconds`, `label` carrying `probability` and the other labels sharing the rest.
+    fn unit(start: f64, seconds: f64, label: &str, probability: f64) -> LabeledUnit {
+        let names = names();
+        let rest = (1.0 - probability) / (names.len() - 1) as f64;
+        let probabilities = names
+            .iter()
+            .map(|name| (name.clone(), if name == label { probability } else { rest }))
+            .collect();
+        LabeledUnit {
+            start: Time(start),
+            end: Time(start + seconds),
+            selected: label.to_owned(),
+            confidence: probability,
+            probabilities,
+        }
+    }
+
+    fn hosts_from(start: f64, count: usize) -> Vec<LabeledUnit> {
+        (0..count).map(|index| unit(start + index as f64 * 31.0, 30.0, "hosts", 0.9)).collect()
+    }
+
+    #[test]
+    fn a_run_of_short_utterances_can_hold_a_segment_of_its_own() {
+        let mut units: Vec<LabeledUnit> =
+            (0..5).map(|index| unit(index as f64 * 3.5, 3.0, "preamble", 0.9)).collect();
+        units.extend(hosts_from(18.0, 6));
+        let smoothed = segments(&units, &names(), 220.0);
+        assert_eq!(smoothed.len(), 2, "a 15 s preamble is a segment");
+        assert_eq!(smoothed[0].label, "preamble");
+        assert!((smoothed[0].end.seconds() - 17.5).abs() < 0.01, "ends at {}", smoothed[0].end);
+    }
+
+    #[test]
+    fn one_short_utterance_cannot_flip_a_segment() {
+        let mut units = hosts_from(0.0, 3);
+        units.push(unit(93.0, 3.0, "classified", 0.9));
+        units.extend(hosts_from(97.0, 3));
+        let smoothed = segments(&units, &names(), 220.0);
+        assert_eq!(smoothed.len(), 1, "three seconds do not outvote two switches");
+    }
+
+    #[test]
+    fn one_whole_window_still_can() {
+        let mut units = hosts_from(0.0, 3);
+        units.push(unit(93.0, 30.0, "classified", 0.9));
+        units.extend(hosts_from(124.0, 3));
+        let smoothed = segments(&units, &names(), 320.0);
+        assert_eq!(smoothed.len(), 3, "thirty seconds do");
     }
 }

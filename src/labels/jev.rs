@@ -17,6 +17,9 @@ use crate::config::{JevSettings, SegmentKind};
 use crate::error::{CliError, ErrorCode};
 use crate::labels::state::WindowState;
 
+/// The choice question, built once and asked of every unit.
+pub type Question = BuiltQuestion;
+
 /// The one question every request asks.
 const QUESTION_ID: &str = "segment";
 /// Environment variable that overrides the configured key command.

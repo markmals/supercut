@@ -10,7 +10,7 @@ use crate::commands::Context;
 use crate::config::{SegmentKind, ShowConfig};
 use crate::error::CliError;
 use crate::labels::also_cut::AlsoCut;
-use crate::labels::record::{LabeledSegment, LabeledWindow, Labels};
+use crate::labels::record::{LabeledSegment, LabeledUnit, Labels};
 use crate::labels::refine::{self, Gap, Policy, Search};
 use crate::library::{Episode, ShowLibrary};
 use crate::plan::{Chapter, Cut, Plan, PlanEpisode};
@@ -19,6 +19,8 @@ use crate::timecode::Time;
 /// Cuts this close to each other are one stretch; a cut this close to the end runs out the
 /// episode.
 const CUT_GAP_SECONDS: f64 = 2.0;
+/// However short the units around a cut edge are, the pause it moves to may be this far away.
+const LEAST_SEARCH_SECONDS: f64 = 10.0;
 
 /// A drafted plan and what the agent should check before rendering it.
 pub struct Draft {
@@ -26,7 +28,7 @@ pub struct Draft {
     pub low_confidence: Vec<Uncertain>,
 }
 
-/// A segment the labels are not sure about.
+/// A segment the labels are not sure about, and what the draft did with it.
 #[derive(Debug, Serialize)]
 pub struct Uncertain {
     pub episode: String,
@@ -34,6 +36,9 @@ pub struct Uncertain {
     pub start: Time,
     pub end: Time,
     pub probability: f64,
+    /// `cut` when the draft cut it anyway (the command line asked for it), `kept` when it was
+    /// left in as content.
+    pub action: &'static str,
 }
 
 /// Drafts a plan covering `episodes`, in the order the library lists them.
@@ -58,7 +63,8 @@ pub fn draft(
             .hint(format!("supercut labels create {slug} {} --force", episode.id))
             .into());
         }
-        low_confidence.extend(uncertain_segments(&labels));
+        let dropped = Dropped { kinds: &show.segments, episode: &episode.id, also: also_cut };
+        low_confidence.extend(uncertain_segments(&labels, &dropped));
         planned.push(plan_episode(&library, show, episode, &labels, also_cut)?);
     }
     let plan = Plan { show: slug.to_owned(), title, output, interstitial: None, episodes: planned };
@@ -98,8 +104,12 @@ struct Dropped<'a> {
 }
 
 impl Dropped<'_> {
-    fn cut(&self, label: &str) -> bool {
-        self.kind(label).is_some_and(|kind| kind.cut) || self.also.contains(self.episode, label)
+    /// A cut-kind segment the labels are unsure of stays in: it is reported, not removed. One
+    /// the command line named is cut whatever its probability.
+    fn cut(&self, segment: &LabeledSegment) -> bool {
+        self.also.contains(self.episode, &segment.label)
+            || (self.kind(&segment.label).is_some_and(|kind| kind.cut)
+                && !crate::labels::uncertain(segment))
     }
 
     fn policy(&self, label: &str) -> Policy {
@@ -119,11 +129,11 @@ impl Dropped<'_> {
 
 fn cuts(labels: &Labels, dropped: &Dropped<'_>, gaps: &[Gap], envelope: &Envelope) -> Vec<Cut> {
     let mut cuts: Vec<Cut> = Vec::new();
-    for segment in labels.segments.iter().filter(|segment| dropped.cut(&segment.label)) {
+    for segment in labels.segments.iter().filter(|segment| dropped.cut(segment)) {
         let bounds = (segment.start.seconds(), segment.end.seconds());
         let search = Search {
-            around_start: neighbourhood(&labels.windows, bounds.0),
-            around_end: neighbourhood(&labels.windows, bounds.1),
+            around_start: neighbourhood(&labels.units, bounds.0),
+            around_end: neighbourhood(&labels.units, bounds.1),
         };
         let edges = refine::refine(bounds, dropped.policy(&segment.label), search, gaps, envelope);
         let reason = format!("segment {} (p={:.2})", segment.label, segment.probability);
@@ -181,7 +191,7 @@ fn join(previous: &mut Cut, next: Cut) {
 /// cut.
 fn chapters(labels: &Labels, dropped: &Dropped<'_>, cuts: &[Cut]) -> Vec<Chapter> {
     let mut chapters: Vec<Chapter> = Vec::new();
-    for segment in labels.segments.iter().filter(|segment| !dropped.cut(&segment.label)) {
+    for segment in labels.segments.iter().filter(|segment| !dropped.cut(segment)) {
         let Some(title) = dropped.title(&segment.label) else {
             continue;
         };
@@ -212,23 +222,29 @@ fn outside_cuts(time: f64, cuts: &[Cut]) -> Option<f64> {
     Some(time)
 }
 
-/// How far a cut edge labeled at `time` may travel: the window it lands in and its neighbours.
-fn neighbourhood(windows: &[LabeledWindow], time: f64) -> (f64, f64) {
-    let Some(last) = windows.len().checked_sub(1) else {
+/// How far a cut edge labeled at `time` may travel: the unit it lands in and its neighbours,
+/// and never less than a few seconds either way, since units can be one utterance long.
+fn neighbourhood(units: &[LabeledUnit], time: f64) -> (f64, f64) {
+    let Some(last) = units.len().checked_sub(1) else {
         return (time, time);
     };
-    let index = windows.iter().position(|window| window.end.seconds() >= time).unwrap_or(last);
-    (windows[index.saturating_sub(1)].start.seconds(), windows[(index + 1).min(last)].end.seconds())
+    let index = units.iter().position(|unit| unit.end.seconds() >= time).unwrap_or(last);
+    let span = (units[index.saturating_sub(1)].start.seconds(), units[(index + 1).min(last)].end.seconds());
+    (span.0.min(time - LEAST_SEARCH_SECONDS), span.1.max(time + LEAST_SEARCH_SECONDS))
 }
 
-fn uncertain_segments(labels: &Labels) -> impl Iterator<Item = Uncertain> + '_ {
+fn uncertain_segments<'a>(
+    labels: &'a Labels,
+    dropped: &'a Dropped<'a>,
+) -> impl Iterator<Item = Uncertain> + 'a {
     labels.segments.iter().filter(|segment| crate::labels::uncertain(segment)).map(
-        |segment: &LabeledSegment| Uncertain {
+        move |segment: &LabeledSegment| Uncertain {
             episode: labels.episode.clone(),
             label: segment.label.clone(),
             start: segment.start,
             end: segment.end,
             probability: segment.probability,
+            action: if dropped.cut(segment) { "cut" } else { "kept" },
         },
     )
 }

@@ -2,14 +2,15 @@
 
 use serde::Serialize;
 
-use crate::labels::window::Window;
+use crate::labels::unit::Unit;
 use crate::library::Episode;
 use crate::timecode::Time;
 
 /// Show notes are background, not evidence; a few hundred characters are plenty.
 const DESCRIPTION_LIMIT: usize = 600;
 
-/// What Jev sees: one window of the episode, and enough around it to place that window.
+/// What Jev sees: one unit of the episode — a window or a single utterance — and enough
+/// around it to place that unit.
 #[derive(Debug, Serialize)]
 pub struct WindowState<'a> {
     pub show: &'a str,
@@ -17,7 +18,7 @@ pub struct WindowState<'a> {
     pub description: String,
     /// `start-end of total`.
     pub position: String,
-    /// How far into the episode the window starts, 0 to 1.
+    /// How far into the episode the unit starts, 0 to 1.
     pub fraction: f64,
     pub before: &'a str,
     pub window: &'a str,
@@ -27,7 +28,7 @@ pub struct WindowState<'a> {
 pub fn state<'a>(
     show: &'a str,
     episode: &'a Episode,
-    window: &'a Window,
+    unit: &'a Unit,
     duration: f64,
 ) -> WindowState<'a> {
     WindowState {
@@ -36,14 +37,14 @@ pub fn state<'a>(
         description: shorten(&episode.description, DESCRIPTION_LIMIT),
         position: format!(
             "{}-{} of {}",
-            Time(window.start),
-            Time(window.end),
-            Time(duration.max(window.end))
+            Time(unit.start),
+            Time(unit.end),
+            Time(duration.max(unit.end))
         ),
-        fraction: (window.start / duration.max(window.end)).clamp(0.0, 1.0),
-        before: &window.before,
-        window: &window.text,
-        after: &window.after,
+        fraction: (unit.start / duration.max(unit.end)).clamp(0.0, 1.0),
+        before: &unit.before,
+        window: &unit.text,
+        after: &unit.after,
     }
 }
 
