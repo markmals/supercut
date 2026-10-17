@@ -1,9 +1,9 @@
 use crate::commands::Context;
 
-/// Show where supercut keeps its config and library, or write a starter config.
+/// Refresh a show's episode index from its RSS feeds.
 #[derive(clap::Args)]
 pub struct Args {}
 
 pub fn run(_context: &Context, _args: Args) -> anyhow::Result<()> {
-    anyhow::bail!("`config` is not built yet")
+    anyhow::bail!("`episodes sync` is not built yet")
 }

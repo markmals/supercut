@@ -1,9 +1,9 @@
 use crate::commands::Context;
 
-/// Download episodes' audio into the library.
+/// Print a show's editorial rules and the path of the rules file.
 #[derive(clap::Args)]
 pub struct Args {}
 
 pub fn run(_context: &Context, _args: Args) -> anyhow::Result<()> {
-    anyhow::bail!("`download` is not built yet")
+    anyhow::bail!("`rules get` is not built yet")
 }

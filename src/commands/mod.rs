@@ -1,20 +1,14 @@
-pub mod adopt;
-pub mod analyze;
+pub mod cli;
 pub mod config;
-pub mod download;
-pub mod draft;
 pub mod episodes;
 pub mod history;
-pub mod inspect;
-pub mod label;
-pub mod plan;
-pub mod preview;
-pub mod render;
+pub mod labels;
+pub mod plans;
+pub mod registry;
 pub mod rules;
-pub mod segments;
-pub mod sync;
-pub mod transcribe;
-pub mod transcript;
+pub mod schema;
+pub mod shows;
+pub mod transcripts;
 
 use std::path::PathBuf;
 

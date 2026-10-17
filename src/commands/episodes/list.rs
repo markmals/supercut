@@ -1,9 +1,9 @@
 use crate::commands::Context;
 
-/// Adopt audio files you already downloaded into the library instead of downloading them again.
+/// List a show's episodes with what exists locally for each.
 #[derive(clap::Args)]
 pub struct Args {}
 
 pub fn run(_context: &Context, _args: Args) -> anyhow::Result<()> {
-    anyhow::bail!("`adopt` is not built yet")
+    anyhow::bail!("`episodes list` is not built yet")
 }

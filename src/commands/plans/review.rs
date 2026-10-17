@@ -1,9 +1,9 @@
 use crate::commands::Context;
 
-/// Label every stretch of episodes with the show's segments using Jev.
+/// Summarize a cut plan for a human reviewer, with transcript context around each cut.
 #[derive(clap::Args)]
 pub struct Args {}
 
 pub fn run(_context: &Context, _args: Args) -> anyhow::Result<()> {
-    anyhow::bail!("`label` is not built yet")
+    anyhow::bail!("`plans review` is not built yet")
 }

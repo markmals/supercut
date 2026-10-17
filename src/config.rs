@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context as _, anyhow};
 use serde::{Deserialize, Serialize};
 
+use crate::error::CliError;
+
 const APP_DIR: &str = "supercut";
 
 /// `config.toml` in the platform config directory (`~/Library/Application Support/supercut` on
@@ -154,15 +156,18 @@ impl Config {
     }
 
     pub fn output_dir(&self) -> anyhow::Result<&Path> {
-        self.output_dir
-            .as_deref()
-            .ok_or_else(|| anyhow!("`output_dir` is not set in the config file"))
+        self.output_dir.as_deref().ok_or_else(|| {
+            CliError::precondition("`output_dir` is not set in the config file").hint("supercut config get").into()
+        })
     }
 
     pub fn show(&self, slug: &str) -> anyhow::Result<&ShowConfig> {
         self.shows.get(slug).ok_or_else(|| {
             let known: Vec<&str> = self.shows.keys().map(String::as_str).collect();
-            anyhow!("no show `{slug}` in the config file (configured: {})", known.join(", "))
+            CliError::not_found(format!("no show `{slug}` in the config file"))
+                .hint("supercut shows list")
+                .detail("configured", known)
+                .into()
         })
     }
 
