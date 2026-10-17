@@ -1,9 +1,9 @@
 use crate::commands::Context;
 
-/// List a show's episodes from the library index.
+/// Check a cut plan against the library and lint every cut edge.
 #[derive(clap::Args)]
 pub struct Args {}
 
 pub fn run(_context: &Context, _args: Args) -> anyhow::Result<()> {
-    anyhow::bail!("`episodes` is not built yet")
+    anyhow::bail!("`plans validate` is not built yet")
 }

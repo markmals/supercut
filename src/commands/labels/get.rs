@@ -1,9 +1,9 @@
 use crate::commands::Context;
 
-/// Render the transitions of a plan into one short file for listening.
+/// Print an episode's labeled segments.
 #[derive(clap::Args)]
 pub struct Args {}
 
 pub fn run(_context: &Context, _args: Args) -> anyhow::Result<()> {
-    anyhow::bail!("`preview` is not built yet")
+    anyhow::bail!("`labels get` is not built yet")
 }

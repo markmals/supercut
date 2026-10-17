@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Context as _;
 
+use crate::error::CliError;
+
 pub use episode::{Episode, EpisodeIndex, EpisodeKind};
 
 /// One show's folder in the library:
@@ -72,8 +74,9 @@ impl ShowLibrary {
 
     /// The episode's downloaded audio, or an error naming the command that fetches it.
     pub fn audio_path(&self, episode: &Episode) -> anyhow::Result<PathBuf> {
-        let file = episode.audio_file.as_deref().with_context(|| {
-            format!("episode `{}` is not downloaded; run `supercut download {} {}`", episode.id, self.slug, episode.id)
+        let file = episode.audio_file.as_deref().ok_or_else(|| {
+            CliError::precondition(format!("episode `{}` is not downloaded", episode.id))
+                .hint(format!("supercut episodes download {} {}", self.slug, episode.id))
         })?;
         Ok(self.audio_dir().join(file))
     }
@@ -91,7 +94,10 @@ impl ShowLibrary {
     /// The index of a show that has been synced at least once.
     pub fn load_synced_index(&self) -> anyhow::Result<EpisodeIndex> {
         let index = self.load_index()?;
-        anyhow::ensure!(!index.episodes.is_empty(), "no episodes for `{0}`; run `supercut sync {0}` first", self.slug);
+        if index.episodes.is_empty() {
+            let error = CliError::precondition(format!("no episodes for `{}` yet", self.slug));
+            return Err(error.hint(format!("supercut episodes sync {}", self.slug)).into());
+        }
         Ok(index)
     }
 

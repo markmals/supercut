@@ -1,9 +1,9 @@
 use crate::commands::Context;
 
-/// Label every stretch of episodes with the show's segments using Jev.
+/// Download episodes' audio into the library.
 #[derive(clap::Args)]
 pub struct Args {}
 
 pub fn run(_context: &Context, _args: Args) -> anyhow::Result<()> {
-    anyhow::bail!("`label` is not built yet")
+    anyhow::bail!("`episodes download` is not built yet")
 }

@@ -1,9 +1,9 @@
 use crate::commands::Context;
 
-/// Download episodes' audio into the library.
+/// List the hand-made supercuts recovered for a show.
 #[derive(clap::Args)]
 pub struct Args {}
 
 pub fn run(_context: &Context, _args: Args) -> anyhow::Result<()> {
-    anyhow::bail!("`download` is not built yet")
+    anyhow::bail!("`history list` is not built yet")
 }
