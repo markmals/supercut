@@ -32,7 +32,9 @@ pub fn lint(resolved: &Resolved) -> anyhow::Result<Vec<String>> {
                 (format!("{label}: the start"), start, cut.fade_out),
                 (format!("{label}: the end"), end, cut.fade_in),
             ];
-            for (label, edge, fade) in edges {
+            // A cut from the top of the file or to its end joins nothing there: no splice to lint.
+            let splices = edges.into_iter().filter(|(_, edge, _)| *edge > 0.0 && *edge < planned.duration);
+            for (label, edge, fade) in splices {
                 warnings.extend(edge_warnings(&label, edge, fade, &envelope, transcript.as_ref()));
             }
         }
