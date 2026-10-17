@@ -40,11 +40,15 @@ pub struct Transition {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Kind {
+    /// How the supercut starts.
+    Opening,
     Cut,
     EpisodeBoundary,
+    /// How it ends.
+    Ending,
 }
 
 pub struct Request<'a> {
@@ -101,15 +105,47 @@ struct Reel {
 
 impl Reel {
     fn fill(&mut self, input: &Input, context: f64) {
+        let last = input.episodes.len().saturating_sub(1);
         for (index, episode) in input.episodes.iter().enumerate() {
             let gain = input.target_lufs - episode.integrated_lufs;
             let kept = kept_ranges(&episode.cuts, episode.duration);
-            for cut in &episode.cuts {
-                self.cut_transition(episode, cut, &kept, gain, context);
+            if index == 0 {
+                self.edge_of_supercut(episode, kept.first(), Kind::Opening, gain, context);
             }
-            let Some(next) = input.episodes.get(index + 1) else { continue };
-            self.boundary_transition(input, episode, next, context);
+            for cut in &episode.cuts {
+                // The opening and ending transitions already play what these cuts leave.
+                let opens = index == 0 && cut.start.seconds() <= EPSILON;
+                let ends = index == last && cut.end.is_none_or(|end| end.seconds() >= episode.duration - EPSILON);
+                if !opens && !ends {
+                    self.cut_transition(episode, cut, &kept, gain, context);
+                }
+            }
+            match input.episodes.get(index + 1) {
+                Some(next) => self.boundary_transition(input, episode, next, context),
+                None => self.edge_of_supercut(episode, kept.last(), Kind::Ending, gain, context),
+            }
         }
+    }
+
+    /// The first or last `context` seconds of the whole supercut.
+    fn edge_of_supercut(&mut self, episode: &InputEpisode, kept: Option<&Kept>, kind: Kind, gain: f64, context: f64) {
+        let Some(range) = kept else { return };
+        self.start_transition();
+        let path = &episode.audio;
+        if kind == Kind::Opening {
+            self.push(Source::file(path, range.start, range.end.min(range.start + context)), gain, range.fade_in, EDGE_FADE_SECONDS);
+        } else {
+            self.push(Source::file(path, range.start.max(range.end - context), range.end), gain, EDGE_FADE_SECONDS, range.fade_out);
+        }
+        self.transitions.push(Transition {
+            index: self.transitions.len() + 1,
+            preview_time: Time(self.transition_start()),
+            episode: episode.id.clone(),
+            kind,
+            cut_start: None,
+            cut_end: None,
+            reason: None,
+        });
     }
 
     /// What the listener hears across a cut: the run-up, the splice, and what follows, each
@@ -190,7 +226,7 @@ impl Reel {
 
 #[cfg(test)]
 mod tests {
-    use super::Reel;
+    use super::{Kind, Reel};
     use crate::plan::Cut;
     use crate::plan::timeline::{Input, InputEpisode};
     use crate::render::piece::Source;
@@ -237,5 +273,25 @@ mod tests {
             let removed = if path.contains("/a.") { *end > 90.0 } else { *start < 10.0 };
             assert!(!removed, "the reel plays cut audio {path} {start}-{end}");
         }
+    }
+
+    #[test]
+    fn the_reel_starts_and_ends_with_the_supercuts_own_first_and_last_seconds() {
+        // a opens with its theme cut away; b's credits run to the end and are cut.
+        let input = Input {
+            target_lufs: -16.0,
+            episodes: vec![episode("a", vec![cut(0.0, Some(44.0)), cut(60.0, Some(70.0))]), episode("b", vec![cut(95.0, None)])],
+            interstitial: None,
+        };
+        let mut reel = Reel::default();
+        reel.fill(&input, 6.0);
+        let kinds: Vec<&Kind> = reel.transitions.iter().map(|transition| &transition.kind).collect();
+        assert_eq!(kinds, [&Kind::Opening, &Kind::Cut, &Kind::EpisodeBoundary, &Kind::Ending]);
+        let file = |piece: &super::Piece| match piece.source {
+            Source::File { start, end, .. } => (start, end),
+            Source::Beep => (0.0, 0.0),
+        };
+        assert_eq!(file(&reel.pieces[0]), (44.0, 50.0), "the supercut starts where the opening cut ends");
+        assert_eq!(file(reel.pieces.last().unwrap()), (89.0, 95.0), "and ends where b's credits begin");
     }
 }
