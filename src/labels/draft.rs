@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
+use crate::analysis::theme::Themes;
 use crate::analysis::{Envelope, episode_analysis, episode_envelope};
+use crate::labels::opening;
 use crate::commands::Context;
 use crate::config::{SegmentKind, ShowConfig};
 use crate::error::CliError;
@@ -27,6 +29,8 @@ const LEAST_SEARCH_SECONDS: f64 = 10.0;
 pub struct Draft {
     pub plan: Plan,
     pub low_confidence: Vec<Uncertain>,
+    /// Episodes whose opening the show's theme recordings could not place.
+    pub warnings: Vec<String>,
 }
 
 /// A segment the labels are not sure about, and what the draft did with it.
@@ -52,9 +56,11 @@ pub fn draft(
     also_cut: &AlsoCut,
 ) -> anyhow::Result<Draft> {
     let (show, library) = context.show(slug)?;
+    let themes = Themes::load(&show.themes)?;
     let mut planned = Vec::with_capacity(episodes.len());
     let mut low_confidence = Vec::new();
-    for episode in episodes {
+    let mut warnings = Vec::new();
+    for (position, episode) in episodes.iter().enumerate() {
         let labels = crate::labels::labels(&library, episode)?;
         if !labels.matches(&show.segments) {
             return Err(CliError::precondition(format!(
@@ -66,10 +72,17 @@ pub fn draft(
         }
         let dropped = Dropped { kinds: &show.segments, episode: &episode.id, also: also_cut };
         low_confidence.extend(uncertain_segments(&labels, &dropped));
-        planned.push(plan_episode(&library, show, episode, &labels, also_cut)?);
+        let drafted = plan_episode(&library, show, &themes, episode, position == 0, &labels, also_cut)?;
+        if !show.themes.is_empty() && !drafted.opened_by_theme {
+            warnings.push(format!(
+                "{}: none of the show's themes plays in its opening, so its opening cut comes from the labels",
+                episode.id
+            ));
+        }
+        planned.push(drafted.episode);
     }
     let plan = Plan { show: slug.to_owned(), title, output, interstitial: None, episodes: planned };
-    Ok(Draft { plan, low_confidence })
+    Ok(Draft { plan, low_confidence, warnings })
 }
 
 /// Where the plan goes: where the caller said, or `<library>/<show>/plans/<output stem>.json`.
@@ -80,22 +93,36 @@ pub fn plan_path(library: &ShowLibrary, output: &str, chosen: Option<PathBuf>) -
     })
 }
 
+struct Drafted {
+    episode: PlanEpisode,
+    opened_by_theme: bool,
+}
+
 fn plan_episode(
     library: &ShowLibrary,
     show: &ShowConfig,
+    themes: &Themes,
     episode: &Episode,
+    first_in_supercut: bool,
     labels: &Labels,
     also_cut: &AlsoCut,
-) -> anyhow::Result<PlanEpisode> {
+) -> anyhow::Result<Drafted> {
     let duration = episode_analysis(library, episode)?.duration;
     let envelope = episode_envelope(library, episode)?;
     let transcript = crate::labels::transcript(library, episode)?;
     let gaps = refine::gaps(&transcript, duration);
     let spoken = phrases::spoken(&transcript);
     let dropped = Dropped { kinds: &show.segments, episode: &episode.id, also: also_cut };
-    let cuts = tidy(cuts(labels, &dropped, &gaps, &spoken, &envelope), duration);
+    let mut cuts = cuts(labels, &dropped, &gaps, &spoken, &envelope);
+    let theme = themes.find_in(&library.audio_path(episode)?)?;
+    if let Some(theme) = &theme {
+        let end = opening::opening_end(theme, first_in_supercut, &envelope);
+        cuts = opening::with_opening(cuts, theme, end);
+    }
+    let cuts = tidy(cuts, duration);
     let chapters = chapters(labels, &dropped, &cuts);
-    Ok(PlanEpisode { id: episode.id.clone(), cuts, chapters, note: None })
+    let episode = PlanEpisode { id: episode.id.clone(), cuts, chapters, note: None };
+    Ok(Drafted { episode, opened_by_theme: theme.is_some() })
 }
 
 /// Which labels this episode loses, and how each one's edges are placed.

@@ -43,6 +43,9 @@ fn path_problems(config: &Config) -> Vec<String> {
     for (slug, show) in &config.shows {
         problems.extend(missing(&format!("shows.{slug}.artwork"), show.artwork.as_deref()));
         problems.extend(missing(&format!("shows.{slug}.interstitial"), show.interstitial.as_deref()));
+        for theme in &show.themes {
+            problems.extend(missing(&format!("shows.{slug}.themes"), Some(theme.as_path())));
+        }
         if show.feeds.is_empty() {
             problems.push(format!("shows.{slug}.feeds: no feeds to sync from"));
         }

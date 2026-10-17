@@ -41,8 +41,12 @@ title = "Example Show"
 feeds = ["https://example.com/feed.xml"]
 # Cover art embedded in rendered supercuts.
 artwork = "~/Pictures/supercut/example-show.jpg"
-# Clip played between episodes.
-interstitial = "~/Music/supercut/example-show-interstitial.mp3"
+# Clip played between episodes; `supercut episodes clip` cuts one out of an episode.
+interstitial = "~/Music/supercut/example-show-interstitial.flac"
+# Recordings of the theme songs and jingles that open episodes, one clip each. `plans draft`
+# cuts each episode up to the end of the one it plays; a supercut's first episode is cut on to
+# the hosts' first words.
+themes = ["~/Music/supercut/example-show-theme.flac"]
 
 # The show's recurring segments. `labels create` sorts every stretch of an episode into one of
 # these, and `plans draft` turns them into cuts and chapters. Write `describe` for the

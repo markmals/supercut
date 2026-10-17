@@ -1,5 +1,7 @@
+pub mod align;
 mod envelope;
 pub mod moment;
+pub mod theme;
 
 use std::path::Path;
 use std::process::Command;

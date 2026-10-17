@@ -1,9 +1,10 @@
-//! Sample-level alignment math on decoded mono audio at a common rate: the exact offset
-//! between two recordings of the same audio, where they stop matching, and how the export's
-//! gain moves against the source's (fades).
+//! Sample-level comparison of two recordings already aligned to the sample (see
+//! `analysis::align`): where they stop matching, and how the export's gain moves against the
+//! source's (fades).
 
-/// Samples per analysis frame (10 ms at 11 025 Hz).
-pub const FRAME: usize = 110;
+pub use crate::analysis::align::FRAME;
+use crate::analysis::align::{correlation, rms};
+
 /// Below this RMS (about -55 dBFS) a frame carries too little signal to compare.
 const SILENT_RMS: f32 = 0.0018;
 /// Frames whose normalized correlation reaches this play the same audio.
@@ -21,52 +22,6 @@ pub enum FrameMatch {
     Matched { gain: f32 },
     Silent,
     Different,
-}
-
-/// Lag, in samples, at which `source[lag..]` best lines up with `export`, searching
-/// `0..=max_lag`, and the normalized correlation there.
-pub fn best_lag(export: &[f32], source: &[f32], max_lag: usize) -> Option<(usize, f32)> {
-    let coarse = coarse_lag(export, source, max_lag)?;
-    let low = coarse.saturating_sub(2 * FRAME);
-    let high = (coarse + 2 * FRAME).min(max_lag);
-    (low..=high)
-        .filter(|lag| lag + export.len() <= source.len())
-        .map(|lag| (lag, correlation(export, &source[lag..lag + export.len()])))
-        .max_by(|a, b| a.1.total_cmp(&b.1))
-}
-
-/// Frame-resolution lag from the RMS envelopes, cheap enough to search widely.
-fn coarse_lag(export: &[f32], source: &[f32], max_lag: usize) -> Option<usize> {
-    let export_envelope = envelope(export);
-    let source_envelope = envelope(source);
-    let frames = export_envelope.len();
-    (0..=max_lag / FRAME)
-        .filter(|shift| shift + frames <= source_envelope.len())
-        .map(|shift| (shift, correlation(&export_envelope, &source_envelope[shift..shift + frames])))
-        .max_by(|a, b| a.1.total_cmp(&b.1))
-        .map(|(shift, _)| shift * FRAME)
-}
-
-fn envelope(samples: &[f32]) -> Vec<f32> {
-    samples.as_chunks::<FRAME>().0.iter().map(|frame| rms(frame)).collect()
-}
-
-fn rms(samples: &[f32]) -> f32 {
-    (samples.iter().map(|sample| sample * sample).sum::<f32>() / samples.len().max(1) as f32).sqrt()
-}
-
-/// Pearson correlation of two equally long slices.
-fn correlation(a: &[f32], b: &[f32]) -> f32 {
-    let n = a.len().min(b.len()) as f32;
-    let (mean_a, mean_b) = (a.iter().sum::<f32>() / n, b.iter().sum::<f32>() / n);
-    let (mut cross, mut energy_a, mut energy_b) = (0.0f32, 0.0f32, 0.0f32);
-    for (x, y) in a.iter().zip(b) {
-        let (dx, dy) = (x - mean_a, y - mean_b);
-        cross += dx * dy;
-        energy_a += dx * dx;
-        energy_b += dy * dy;
-    }
-    if energy_a <= 0.0 || energy_b <= 0.0 { 0.0 } else { cross / (energy_a * energy_b).sqrt() }
 }
 
 /// Frame-by-frame comparison of two already aligned, equally long recordings.
@@ -159,28 +114,7 @@ pub fn steady_gain(frames: &[FrameMatch]) -> Option<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Noise-like test signal: deterministic and uncorrelated with itself at any lag.
-    fn signal(seed: u32, len: usize) -> Vec<f32> {
-        let mut state = seed;
-        (0..len)
-            .map(|_| {
-                state ^= state << 13;
-                state ^= state >> 17;
-                state ^= state << 5;
-                (state as f32 / u32::MAX as f32 - 0.5) * 0.5
-            })
-            .collect()
-    }
-
-    #[test]
-    fn finds_the_exact_sample_lag_at_a_different_gain() {
-        let source = signal(7, 30_000);
-        let export: Vec<f32> = source[4_321..4_321 + 11_025].iter().map(|sample| sample * 0.5).collect();
-        let (lag, score) = best_lag(&export, &source, 8_000).unwrap();
-        assert_eq!(lag, 4_321);
-        assert!(score > 0.99, "{score}");
-    }
+    use crate::analysis::align::tests::signal;
 
     #[test]
     fn locates_a_cut_and_measures_its_fade_out() {

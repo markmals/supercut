@@ -108,6 +108,11 @@ pub struct ShowConfig {
     pub artwork: Option<PathBuf>,
     /// Clip played between episodes.
     pub interstitial: Option<PathBuf>,
+    /// Recordings of the theme songs and jingles that open episodes (a clip from one episode is
+    /// enough; `episodes clip` makes one). `plans draft` cuts each episode up to the end of the
+    /// one that plays in its opening.
+    #[serde(default)]
+    pub themes: Vec<PathBuf>,
     /// The show's recurring segments. `label` sorts every stretch of an episode into one of
     /// these; `draft` turns them into cuts and chapters.
     #[serde(default)]
@@ -216,14 +221,22 @@ impl Config {
         for show in self.shows.values_mut() {
             expand_home(&mut show.artwork);
             expand_home(&mut show.interstitial);
+            for theme in &mut show.themes {
+                *theme = home_expanded(theme);
+            }
         }
     }
 }
 
 fn expand_home(path: &mut Option<PathBuf>) {
-    let Some(current) = path.as_ref() else { return };
-    let Ok(rest) = current.strip_prefix("~") else { return };
-    if let Some(home) = dirs::home_dir() {
-        *path = Some(home.join(rest));
+    if let Some(current) = path.as_mut() {
+        *current = home_expanded(current);
+    }
+}
+
+fn home_expanded(path: &Path) -> PathBuf {
+    match (path.strip_prefix("~"), dirs::home_dir()) {
+        (Ok(rest), Some(home)) => home.join(rest),
+        _ => path.to_path_buf(),
     }
 }

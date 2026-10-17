@@ -85,6 +85,11 @@ impl Envelope {
         spans
     }
 
+    /// Start of the first frame in `[start, end)` louder than `threshold_db`.
+    pub fn first_above(&self, start: f64, end: f64, threshold_db: f32) -> Option<f64> {
+        self.frames_in(start, end).find(|&frame| self.levels_db[frame] > threshold_db).map(Self::time_of)
+    }
+
     pub fn save(&self, path: &Path) -> anyhow::Result<()> {
         let bytes: Vec<u8> = self.levels_db.iter().flat_map(|level| level.to_le_bytes()).collect();
         crate::library::write_atomically(path, &bytes)

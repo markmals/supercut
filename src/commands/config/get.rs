@@ -48,6 +48,8 @@ struct Show<'a> {
     artwork: Option<&'a Path>,
     /// Played between episodes in every supercut of the show.
     interstitial: Option<&'a Path>,
+    /// Theme songs and jingles whose end marks where each episode's opening cut ends.
+    themes: &'a [std::path::PathBuf],
     /// The segments `labels create` sorts episodes into; `cut` ones `plans draft` removes.
     segments: &'a [SegmentKind],
 }
@@ -59,6 +61,7 @@ fn show<'a>(slug: &'a str, settings: &'a ShowConfig) -> Show<'a> {
         feeds: settings.feeds.len(),
         artwork: settings.artwork.as_deref(),
         interstitial: settings.interstitial.as_deref(),
+        themes: &settings.themes,
         segments: &settings.segments,
     }
 }

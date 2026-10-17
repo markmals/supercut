@@ -79,8 +79,8 @@ fn exact_offset(export: &Path, source: &Path, estimate: &Estimate) -> anyhow::Re
     let export_samples = decode_window(export, export_window_start, 2.0 * half, RATE, 1)?;
     let source_samples = decode_window(source, source_window_start, 2.0 * (half + OFFSET_SEARCH_SECONDS), RATE, 1)?;
     let max_lag = source_samples.len().saturating_sub(export_samples.len());
-    let (lag, correlation) =
-        refine::best_lag(&export_samples, &source_samples, max_lag).context("windows too short to align")?;
+    let (lag, correlation) = crate::analysis::align::best_lag(&export_samples, &source_samples, max_lag)
+        .context("windows too short to align")?;
     let aligned = &source_samples[lag..lag + export_samples.len()];
     let gain = refine::steady_gain(&refine::compare_frames(&export_samples, aligned));
     let offset = export_window_start - (source_window_start + lag as f64 / f64::from(RATE));

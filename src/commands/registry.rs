@@ -53,7 +53,7 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "config get",
         effects: &[ReadOnly],
-        output: "{config_file, exists, library_dir, output_dir, sideload_dir, rules_dir, shows: [{show, title, feeds, artwork, interstitial, segments}], transcription, loudness, jev}",
+        output: "{config_file, exists, library_dir, output_dir, sideload_dir, rules_dir, shows: [{show, title, feeds, artwork, interstitial, themes, segments}], transcription, loudness, jev}",
         example: "supercut config get",
         keywords: &["context", "settings", "paths", "where", "library", "interstitial", "artwork", "segments", "show settings"],
     },
