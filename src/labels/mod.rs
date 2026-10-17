@@ -1,6 +1,7 @@
 //! Segment labeling with Jev: ~30 s windows of transcript in, the show's segments out, and a
 //! cut plan drafted from them.
 
+mod also_cut;
 mod draft;
 mod jev;
 mod record;
@@ -12,6 +13,7 @@ mod window;
 
 use anyhow::Context as _;
 
+pub use also_cut::AlsoCut;
 pub use draft::{Uncertain, draft, plan_path};
 pub use record::{LabeledSegment, Labels};
 pub use run::{estimate_episodes, label_episodes};
