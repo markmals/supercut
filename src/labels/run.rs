@@ -135,8 +135,15 @@ fn ask(
         units.iter().map(|unit| state::state(&show.title, episode, unit, duration)).collect();
     let total = states.len();
     eprintln!("labeling {} ({total} {noun})", episode.id);
-    let answers = labeler.answer_all(&states, |done| eprint!("\r  {done}/{total} {noun}"))?;
-    eprintln!();
+    let terminal = std::io::IsTerminal::is_terminal(&std::io::stderr());
+    let answers = labeler.answer_all(&states, |done| {
+        if terminal {
+            eprint!("\r  {done}/{total} {noun}");
+        }
+    })?;
+    if terminal {
+        eprintln!();
+    }
     let tokens = answers.iter().map(|answer| answer.input_tokens).sum();
     let labeled = units
         .iter()

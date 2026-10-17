@@ -1,5 +1,5 @@
 use std::ffi::OsString;
-use std::io::{BufRead, BufReader, Write as _};
+use std::io::{BufRead, BufReader, IsTerminal as _, Write as _};
 use std::process::{Command, Stdio};
 
 use anyhow::Context as _;
@@ -32,8 +32,10 @@ pub fn run(args: &[OsString], total_seconds: f64, label: &str) -> anyhow::Result
     Err(failure.into())
 }
 
-/// ffmpeg writes `key=value` lines; `out_time_us` says how much audio it has written.
+/// ffmpeg writes `key=value` lines; `out_time_us` says how much audio it has written. A
+/// terminal gets one updating line; a log gets a line every 10%.
 fn report(progress: impl BufRead, total_seconds: f64, label: &str) {
+    let terminal = std::io::stderr().is_terminal();
     let mut percent = 0;
     for line in progress.lines().map_while(Result::ok) {
         let Some(microseconds) = line.strip_prefix("out_time_us=").and_then(|value| value.parse::<i64>().ok()) else {
@@ -44,8 +46,12 @@ fn report(progress: impl BufRead, total_seconds: f64, label: &str) {
             continue;
         }
         percent = done;
-        eprint!("\r{label}: {percent}%");
-        let _ = std::io::stderr().flush();
+        if terminal {
+            eprint!("\r{label}: {percent}%");
+            let _ = std::io::stderr().flush();
+        } else if percent % 10 == 0 {
+            eprintln!("{label}: {percent}%");
+        }
     }
-    eprintln!("\r{label}: done   ");
+    eprintln!("{}{label}: done", if terminal { "\r" } else { "" });
 }
