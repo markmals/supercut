@@ -169,8 +169,10 @@ impl Config {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Self::default()),
             Err(error) => return Err(error).with_context(|| format!("reading {}", path.display())),
         };
-        let mut config: Config =
-            toml::from_str(&text).with_context(|| format!("parsing {}", path.display()))?;
+        let mut config: Config = toml::from_str(&text).map_err(|error| {
+            CliError::invalid(format!("{} is not a valid config: {error}", path.display()))
+                .hint("`supercut config init --config <scratch>.toml` writes a commented example of every setting")
+        })?;
         config.expand_home_paths();
         Ok(config)
     }
