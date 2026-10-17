@@ -1,6 +1,6 @@
 //! An episode's opening: everything up to the end of its theme song goes. A supercut's first
 //! episode goes on to the hosts' first words; the others start where the theme ends, right
-//! after the interstitial.
+//! after the interstitial, unless dead air follows the theme.
 
 use crate::analysis::Envelope;
 use crate::analysis::theme::ThemeMatch;
@@ -11,17 +11,23 @@ use crate::timecode::Time;
 const SPEECH_DB: f32 = -35.0;
 /// How long after the theme the hosts may take to start.
 const SPEECH_WITHIN_SECONDS: f64 = 10.0;
-/// Left before the first syllable so its attack survives.
-const PRE_ROLL_SECONDS: f64 = 0.02;
+/// Left before the first syllable so its soft start survives.
+const PRE_ROLL_SECONDS: f64 = 0.05;
+/// The pause The Neighborhood Listen leaves between theme and talk (median of 160 episodes:
+/// 0.44 s, nine in ten under 0.67 s).
+const USUAL_PAUSE_SECONDS: f64 = 0.45;
+/// A longer pause after the theme is dead air, cut down to the usual one.
+const LONGEST_PAUSE_SECONDS: f64 = 1.0;
 
 /// Where the opening cut ends.
 pub fn opening_end(theme: &ThemeMatch, first_in_supercut: bool, envelope: &Envelope) -> f64 {
-    if !first_in_supercut {
+    let Some(talk) = envelope.first_above(theme.end, theme.end + SPEECH_WITHIN_SECONDS, SPEECH_DB) else {
         return theme.end;
+    };
+    if first_in_supercut {
+        return (talk - PRE_ROLL_SECONDS).max(theme.end);
     }
-    envelope
-        .first_above(theme.end, theme.end + SPEECH_WITHIN_SECONDS, SPEECH_DB)
-        .map_or(theme.end, |onset| (onset - PRE_ROLL_SECONDS).max(theme.end))
+    if talk - theme.end > LONGEST_PAUSE_SECONDS { talk - USUAL_PAUSE_SECONDS } else { theme.end }
 }
 
 /// `cuts` led by the opening cut. Cuts that began inside the theme give way to it: they are the
@@ -47,20 +53,26 @@ mod tests {
         ThemeMatch { theme: "/themes/show.flac".into(), start: end - 27.0, end, score: 0.99 }
     }
 
-    /// Theme music to 43.8 s, 0.4 s of near-silence, then the hosts talking.
-    fn envelope() -> Envelope {
+    /// Theme music to 43.8 s, `pause` seconds of near-silence, then the hosts talking.
+    fn envelope(pause: f64) -> Envelope {
         let frames = (60.0 / FRAME_SECONDS) as usize;
         Envelope::from_mean_squares((0..frames).map(|frame| {
             let time = frame as f64 * FRAME_SECONDS;
-            if (43.8..44.2).contains(&time) { 1e-9 } else { 0.05 }
+            if (43.8..43.8 + pause).contains(&time) { 1e-9 } else { 0.05 }
         }))
     }
 
     #[test]
     fn later_episodes_start_where_the_theme_ends_and_the_first_on_the_hosts_first_words() {
-        assert_eq!(opening_end(&theme(43.8), false, &envelope()), 43.8);
-        let first = opening_end(&theme(43.8), true, &envelope());
-        assert!((first - 44.18).abs() < 1e-6, "{first}");
+        assert_eq!(opening_end(&theme(43.8), false, &envelope(0.4)), 43.8);
+        let first = opening_end(&theme(43.8), true, &envelope(0.4));
+        assert!((first - 44.15).abs() < 1e-6, "{first}");
+    }
+
+    #[test]
+    fn dead_air_after_the_theme_shrinks_to_the_usual_pause() {
+        let later = opening_end(&theme(43.8), false, &envelope(5.4));
+        assert!((later - 48.75).abs() < 1e-6, "{later}");
     }
 
     #[test]
