@@ -79,12 +79,14 @@ impl Labels {
     pub fn save(&self, path: &Path) -> anyhow::Result<()> {
         crate::library::write_json_atomically(path, self)
     }
-    /// Were these labels made with the show's current segments, by a labeler that ran the fine
-    /// pass? Labels without fine units predate it and are stale.
+
+    /// Were these labels made from the show's current segment labels and descriptions (all Jev
+    /// sees), by a labeler that ran the fine pass? Titles, cut flags and edge policies only
+    /// shape the draft, so changing them needs no relabeling.
     pub fn matches(&self, kinds: &[SegmentKind]) -> bool {
         !self.units.is_empty()
             && self.kinds.len() == kinds.len()
-            && self.kinds.iter().zip(kinds).all(|(stored, current)| *stored == kind_of(current))
+            && self.kinds.iter().zip(kinds).all(|(stored, current)| stored.label == current.label && stored.describe == current.describe)
     }
 }
 

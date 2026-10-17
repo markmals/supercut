@@ -11,7 +11,8 @@ use crate::config::{SegmentKind, ShowConfig};
 use crate::error::CliError;
 use crate::labels::also_cut::AlsoCut;
 use crate::labels::record::{LabeledSegment, LabeledUnit, Labels};
-use crate::labels::refine::{self, Gap, Policy, Search};
+use crate::labels::phrases::{self, Spoken};
+use crate::labels::refine::{self, Anchors, Gap, Policy, Search};
 use crate::library::{Episode, ShowLibrary};
 use crate::plan::{Chapter, Cut, Plan, PlanEpisode};
 use crate::timecode::Time;
@@ -90,8 +91,9 @@ fn plan_episode(
     let envelope = episode_envelope(library, episode)?;
     let transcript = crate::labels::transcript(library, episode)?;
     let gaps = refine::gaps(&transcript, duration);
+    let spoken = phrases::spoken(&transcript);
     let dropped = Dropped { kinds: &show.segments, episode: &episode.id, also: also_cut };
-    let cuts = tidy(cuts(labels, &dropped, &gaps, &envelope), duration);
+    let cuts = tidy(cuts(labels, &dropped, &gaps, &spoken, &envelope), duration);
     let chapters = chapters(labels, &dropped, &cuts);
     Ok(PlanEpisode { id: episode.id.clone(), cuts, chapters, note: None })
 }
@@ -125,9 +127,17 @@ impl Dropped<'_> {
     fn kind(&self, label: &str) -> Option<&SegmentKind> {
         self.kinds.iter().find(|kind| kind.label == label)
     }
+
+    /// The edges the segment kind's phrases pin down around `bounds`, if it names any.
+    fn anchors(&self, label: &str, bounds: (f64, f64), spoken: &[Spoken]) -> Anchors {
+        let Some(kind) = self.kind(label) else { return Anchors::default() };
+        let start_after = phrases::start_after(spoken, &kind.after_phrases, bounds.0);
+        let end_before = phrases::end_before(spoken, &kind.before_phrases, start_after.unwrap_or(bounds.0), bounds.1);
+        Anchors { start_after, end_before }
+    }
 }
 
-fn cuts(labels: &Labels, dropped: &Dropped<'_>, gaps: &[Gap], envelope: &Envelope) -> Vec<Cut> {
+fn cuts(labels: &Labels, dropped: &Dropped<'_>, gaps: &[Gap], spoken: &[Spoken], envelope: &Envelope) -> Vec<Cut> {
     let mut cuts: Vec<Cut> = Vec::new();
     for segment in labels.segments.iter().filter(|segment| dropped.cut(segment)) {
         let bounds = (segment.start.seconds(), segment.end.seconds());
@@ -135,7 +145,8 @@ fn cuts(labels: &Labels, dropped: &Dropped<'_>, gaps: &[Gap], envelope: &Envelop
             around_start: neighbourhood(&labels.units, bounds.0),
             around_end: neighbourhood(&labels.units, bounds.1),
         };
-        let edges = refine::refine(bounds, dropped.policy(&segment.label), search, gaps, envelope);
+        let anchors = dropped.anchors(&segment.label, bounds, spoken);
+        let edges = refine::refine(bounds, dropped.policy(&segment.label), anchors, search, gaps, envelope);
         let reason = format!("segment {} (p={:.2})", segment.label, segment.probability);
         let start = match cuts.last().and_then(|last| last.end) {
             Some(previous) => edges.start.max(previous.seconds()),

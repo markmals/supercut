@@ -132,6 +132,14 @@ pub struct SegmentKind {
     /// Where it ends.
     #[serde(default)]
     pub cut_end: CutEnd,
+    /// Phrases said right before this segment, e.g. "be right back": a cut of it starts after
+    /// the one said nearest where the labels put the segment's start.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub after_phrases: Vec<String>,
+    /// Phrases said right after this segment, e.g. "welcome back": a cut of it ends before the
+    /// first one said once the segment has begun.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub before_phrases: Vec<String>,
 }
 
 /// Which side of the pause before the segment the cut starts on.
