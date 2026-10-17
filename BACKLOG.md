@@ -26,5 +26,5 @@ Agreed order: get The Neighborhood Listen (NHL) right end to end, then publishin
 - Confirm the true-peak ceiling holds after MP3 encoding (the limiter runs before the encoder).
 - `--output` means a format on some commands and a file on others.
 - `plans draft` does not read the show's rules file; the agent applies it.
-- After hand edits, `plans draft`'s chapters go stale: a kept low-confidence `classified` keeps a "Classified" chapter, and a hand cut can leave a seconds-long "Plug" chapter. `plans validate` only reports chapters that fall wholly inside a cut; it could also flag chapters a few seconds long.
-- Labels flip briefly inside a segment (S09E08 55:35–56:55: the hosts riff mid-guest and the labels call it Burt & Joan), which makes short chapters in the middle of the Guest segment. Waiting on the user: absorb short chapters that sit between two of the same segment?
+- Shows without a `chapters` layout get a chapter per labeled segment, and those go stale after hand edits (a kept low-confidence `classified` keeps its chapter, a hand cut can leave a seconds-long one) and flicker when the labels flip inside a segment. `plans validate` only reports chapters that fall wholly inside a cut; it could also flag chapters a few seconds long.
+- NHL Bonus Room chapter titles keep the "BONUS ROOM #N: " prefix ("Intro: BONUS ROOM #30: Rain of Moonfire"); ask the user whether to drop it.
