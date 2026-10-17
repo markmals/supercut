@@ -30,11 +30,12 @@ fn write_episode(page: &mut String, episode: &EpisodeReview) -> fmt::Result {
     writeln!(page, "## {} — {}\n", episode.id, episode.title)?;
     writeln!(
         page,
-        "Kept {} of {} · {} · plays at {}\n",
+        "Kept {} of {} · {} · plays at {} · {}\n",
         episode.kept,
         episode.duration,
         cuts(episode.cuts.len()),
-        episode.plays_at
+        episode.plays_at,
+        if episode.interstitial_after { "the interstitial follows" } else { "no interstitial follows" }
     )?;
     for cut in &episode.cuts {
         write_cut(page, cut)?;

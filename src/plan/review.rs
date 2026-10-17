@@ -31,6 +31,8 @@ pub struct EpisodeReview {
     pub duration: Time,
     pub kept: Time,
     pub plays_at: Time,
+    /// Whether the interstitial plays after the episode; not after one that ends on its bumper.
+    pub interstitial_after: bool,
     pub cuts: Vec<CutReview>,
     pub chapters: Vec<ChapterReview>,
 }
@@ -83,7 +85,8 @@ pub fn review(context: &Context, plan: &Plan) -> anyhow::Result<Review> {
     let mut episodes = Vec::new();
     for (span, episode) in timeline.episodes.iter().zip(&resolved.input.episodes) {
         let transcript = resolved.transcript(&episode.id)?;
-        episodes.push(episode_review(span, episode, transcript.as_ref()));
+        let interstitial_after = episode.interstitial_after && resolved.input.interstitial.is_some();
+        episodes.push(episode_review(span, episode, interstitial_after, transcript.as_ref()));
     }
     let source: f64 = resolved.input.episodes.iter().map(|episode| episode.duration).sum();
     let kept: f64 = timeline.episodes.iter().map(|span| span.kept_seconds).sum();
@@ -97,7 +100,12 @@ pub fn review(context: &Context, plan: &Plan) -> anyhow::Result<Review> {
     Ok(Review { title: plan.title.clone(), show: resolved.show.title.clone(), episodes, totals })
 }
 
-fn episode_review(span: &EpisodeSpan, episode: &InputEpisode, transcript: Option<&Transcript>) -> EpisodeReview {
+fn episode_review(
+    span: &EpisodeSpan,
+    episode: &InputEpisode,
+    interstitial_after: bool,
+    transcript: Option<&Transcript>,
+) -> EpisodeReview {
     let cuts = episode
         .cuts
         .iter()
@@ -120,6 +128,7 @@ fn episode_review(span: &EpisodeSpan, episode: &InputEpisode, transcript: Option
         duration: Time(episode.duration),
         kept: Time(span.kept_seconds),
         plays_at: Time(span.start),
+        interstitial_after,
         cuts,
         chapters,
     }

@@ -186,7 +186,7 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "plans review",
         effects: &[ReadOnly],
-        output: "{title, show, episodes: [{id, title, duration, kept, plays_at, cuts: [{index, start, end, length, \
+        output: "{title, show, episodes: [{id, title, duration, kept, plays_at, interstitial_after, cuts: [{index, start, end, length, \
                  reason, fade_out, fade_in, context}], chapters}], totals}; --output text for Markdown",
         example: "supercut plans review plan.json --output text",
         keywords: &["summary", "approve", "human review"],
