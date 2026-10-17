@@ -2,15 +2,27 @@ use serde::{Deserialize, Serialize};
 
 /// A word-timed transcript, independent of the engine that produced it. Times are seconds from
 /// the start of the episode's audio file.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Transcript {
     pub engine: String,
     pub model: String,
     pub language: String,
+    /// Stretches the engine garbled, typically by looping one phrase. Their words are not in
+    /// `segments`: readers should treat these spans as holes rather than silence.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unreliable: Vec<UnreliableSpan>,
     pub segments: Vec<Segment>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct UnreliableSpan {
+    pub start: f64,
+    pub end: f64,
+    /// Why the span is untrustworthy, in words an agent can relay.
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Segment {
     pub start: f64,
     pub end: f64,
@@ -18,7 +30,7 @@ pub struct Segment {
     pub words: Vec<Word>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Word {
     pub start: f64,
     pub end: f64,
@@ -36,6 +48,11 @@ impl Transcript {
     /// Words that overlap `[start, end)`.
     pub fn words_between(&self, start: f64, end: f64) -> impl Iterator<Item = &Word> {
         self.words().filter(move |word| word.end > start && word.start < end)
+    }
+
+    /// Unreliable spans that overlap `[start, end)`.
+    pub fn unreliable_between(&self, start: f64, end: f64) -> impl Iterator<Item = &UnreliableSpan> {
+        self.unreliable.iter().filter(move |span| span.end > start && span.start < end)
     }
 
     /// The text spoken in `[start, end)`, joined with spaces.

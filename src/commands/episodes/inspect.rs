@@ -5,5 +5,5 @@ use crate::commands::Context;
 pub struct Args {}
 
 pub fn run(_context: &Context, _args: Args) -> anyhow::Result<()> {
-    anyhow::bail!("`inspect` is not built yet")
+    anyhow::bail!("`episodes inspect` is not built yet")
 }
