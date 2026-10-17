@@ -27,9 +27,10 @@ pub const QUIET_DB: f32 = -45.0;
 /// Under this, a segment is worth listening to before acting on it.
 pub const LOW_CONFIDENCE: f64 = 0.7;
 
-/// Is this segment too uncertain to cut or chapter unseen?
+/// Is this segment too uncertain to cut or chapter unseen? One shaky window inside a long
+/// stretch is normal; a stretch whose label is weak throughout is not.
 pub fn uncertain(segment: &LabeledSegment) -> bool {
-    segment.probability < LOW_CONFIDENCE || segment.min_confidence < LOW_CONFIDENCE
+    segment.probability < LOW_CONFIDENCE
 }
 
 /// The episode's transcript, or an error naming the command that writes it.
