@@ -185,6 +185,13 @@ pub const OPERATIONS: &[Operation] = &[
         keywords: &["summary", "approve", "human review"],
     },
     Operation {
+        path: "plans compare",
+        effects: &[ReadOnly],
+        output: "{episodes: [{id, matched: [{a, b, start_delta, end_delta, shared_seconds}], only_in_a, only_in_b}], only_in_a, only_in_b, summary}",
+        example: "supercut plans compare draft.json history.plan.json",
+        keywords: &["diff", "difference", "agree", "match past cuts", "evaluate draft", "versus"],
+    },
+    Operation {
         path: "plans preview",
         effects: &[WritesLibrary],
         output: "{preview, duration, transitions: [{index, preview_time, episode, kind, cut_start, cut_end, reason}]}",

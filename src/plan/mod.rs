@@ -1,4 +1,5 @@
 pub mod check;
+pub mod compare;
 pub mod lint;
 pub mod resolve;
 pub mod review;
