@@ -4,11 +4,10 @@ Agreed order: get The Neighborhood Listen (NHL) right end to end, then publishin
 
 ## The Neighborhood Listen
 
-1. Recognize each episode's closing music by sound so the credits and closing music are cut without relying on the labels (in progress).
-2. S09 pt 2: S09E08–E13 plus Bonus Room #30, the one half season never made. Redraft (the saved plan predates the theme, bumper and fade fixes), review, preview, render on approval.
-3. Decide the end-of-episode plug rule: the hand-made supercuts cut from the Maximus/bonus-content pitch to the end when only a goodbye follows it (S10E01, S10E03) and kept it when the hosts riffed after it (S10E02, S10E06); `plans draft` currently always keeps it.
-4. A speculative cut of S11 pt 1.
-5. Openings no theme recording matches still need a hand cut: S05E01 and Bonus Rooms #1, #8 and #10.
+1. S09 pt 2: S09E08–E13 plus Bonus Room #30, the one half season never made. Redraft (the saved plan predates the theme, outro, bumper and fade fixes), review, preview, render on approval.
+2. Decide the end-of-episode plug rule: the hand-made supercuts cut from the Maximus/bonus-content pitch to the end when only a goodbye follows it (S10E01, S10E03) and kept it when the hosts riffed after it (S10E02, S10E06); `plans draft` currently always keeps it.
+3. A speculative cut of S11 pt 1.
+4. Hand cuts no recording places yet: the openings of S05E01 and Bonus Rooms #1, #8 and #10, and the endings of most of S01–S04 and Bonus Rooms #1 and #3 (their closing music differs from the S05–S10 outro).
 
 ## Publishing
 
