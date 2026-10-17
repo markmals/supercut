@@ -137,14 +137,14 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "transcripts create",
         effects: &[WritesLibrary, HeavyCompute],
-        output: "[{id, seconds, words, unreliable_spans}]",
+        output: "[{id, seconds, words, unreliable_spans, status: transcribed|skipped|would-transcribe}]",
         example: "supercut transcripts create the-neighborhood-listen s10e01",
         keywords: &["transcribe", "speech to text", "whisper"],
     },
     Operation {
         path: "transcripts get",
         effects: &[ReadOnly],
-        output: "{episode, utterances: [{start, end, text}], unreliable}; --output text for timestamped lines",
+        output: "{episode, from, to, utterances: [{start, end, text}], unreliable: [{start, end, reason}]}; --output text for `[m:ss.s] line` text",
         example: "supercut transcripts get the-neighborhood-listen s10e01 --from 28:00 --to 31:00 --output text",
         keywords: &["read", "what was said", "words", "text"],
     },
