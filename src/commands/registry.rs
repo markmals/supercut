@@ -215,8 +215,8 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "history get",
         effects: &[ReadOnly],
-        output: "the recovered pieces, cuts, fades and the transcript of each cut",
-        example: "supercut history get the-neighborhood-listen the-neighborhood-listen-S10-pt-1",
+        output: "{name, export, duration, episodes: [{id, title, kept_seconds, cut_seconds, transcribed, cuts: [{start, end, seconds, fade_out, fade_in, before, opens, closes, words, after}]}], interstitials}; the quote fields need the episode's transcript; --output text for Markdown",
+        example: "supercut history get the-neighborhood-listen the-neighborhood-listen-S10-pt-1 --output text",
         keywords: &["report", "past cuts", "examples"],
     },
     Operation {

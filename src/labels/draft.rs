@@ -244,11 +244,16 @@ fn neighbourhood(units: &[LabeledUnit], time: f64) -> (f64, f64) {
     (span.0.min(time - LEAST_SEARCH_SECONDS), span.1.max(time + LEAST_SEARCH_SECONDS))
 }
 
+/// Uncertain segments whose fate the draft decided: those of a kind it cuts (or was asked to
+/// cut). An unsure boundary between two kept kinds changes nothing in the supercut.
 fn uncertain_segments<'a>(
     labels: &'a Labels,
     dropped: &'a Dropped<'a>,
 ) -> impl Iterator<Item = Uncertain> + 'a {
-    labels.segments.iter().filter(|segment| crate::labels::uncertain(segment)).map(
+    let at_stake = |segment: &&LabeledSegment| {
+        dropped.kind(&segment.label).is_some_and(|kind| kind.cut) || dropped.also.contains(dropped.episode, &segment.label)
+    };
+    labels.segments.iter().filter(|segment| crate::labels::uncertain(segment)).filter(at_stake).map(
         move |segment: &LabeledSegment| Uncertain {
             episode: labels.episode.clone(),
             label: segment.label.clone(),
