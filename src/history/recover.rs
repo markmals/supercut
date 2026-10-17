@@ -13,6 +13,8 @@ use crate::timecode::Time;
 const STING_SECONDS: f64 = 30.0;
 /// Unmatched export audio shorter than this is a splice artifact, not inserted material.
 const MIN_GAP_SECONDS: f64 = 0.5;
+/// Material between episodes longer than this is not an interstitial: its source is missing.
+const MAX_INTERSTITIAL_SECONDS: f64 = 60.0;
 /// Fades shorter than this are just the edge of the audio, not a deliberate fade.
 const MIN_FADE_SECONDS: f64 = 0.05;
 
@@ -74,18 +76,32 @@ pub fn classify(name: &str, export: &str, duration: f64, pieces: Vec<Piece>) -> 
             extend(&mut pending, piece.export_start, piece.export_end, Some(piece));
             continue;
         }
-        if let Some(interstitial) = pending.take()
-            && previous_episode.is_some()
-        {
-            recovery.interstitials.push(interstitial);
+        if let Some(interstitial) = pending.take() {
+            close(&mut recovery, interstitial);
         }
         previous_episode = Some(piece.episode.clone());
         recovery.pieces.push(piece);
     }
     if let Some(interstitial) = pending.take() {
-        recovery.interstitials.push(interstitial);
+        close(&mut recovery, interstitial);
     }
     recovery
+}
+
+/// Files material between episodes as an interstitial, or as unmatched audio with a warning
+/// when it is too long to be one (an episode the candidates did not include).
+fn close(recovery: &mut Recovery, interstitial: Interstitial) {
+    let seconds = interstitial.export_end - interstitial.export_start;
+    if seconds <= MAX_INTERSTITIAL_SECONDS {
+        recovery.interstitials.push(interstitial);
+        return;
+    }
+    recovery.warnings.push(format!(
+        "{} of the export from {} matches no candidate episode; its source is probably not downloaded",
+        Time(seconds),
+        Time(interstitial.export_start)
+    ));
+    recovery.unmatched.push(Span { export_start: interstitial.export_start, export_end: interstitial.export_end });
 }
 
 fn extend(pending: &mut Option<Interstitial>, start: f64, end: f64, source: Option<Piece>) {
@@ -207,6 +223,18 @@ mod tests {
         let first = &recovery.interstitials[0];
         assert_eq!((first.export_start, first.export_end), (1100.0, 1110.0), "gap + sting + gap form one interstitial");
         assert!(recovery.unmatched.is_empty(), "{:?}", recovery.unmatched);
+    }
+
+    #[test]
+    fn an_hour_between_episodes_is_a_missing_source_not_an_interstitial() {
+        // Between a and b the export plays an episode that was not a candidate; only its theme
+        // song matched (a short sting from c).
+        let pieces = vec![piece("a", 0.0, 50.0, 600.0), piece("c", 1200.0, 30.0, 10.0), piece("b", 4200.0, 40.0, 900.0)];
+        let recovery = classify("x", "x.mp3", 5100.0, pieces);
+        assert!(recovery.interstitials.is_empty(), "{:?}", recovery.interstitials);
+        assert_eq!(recovery.unmatched.len(), 1);
+        assert_eq!((recovery.unmatched[0].export_start, recovery.unmatched[0].export_end), (600.0, 4200.0));
+        assert_eq!(recovery.warnings.len(), 1);
     }
 
     #[test]
