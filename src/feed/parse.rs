@@ -27,7 +27,9 @@ fn feed_item(item: &rss::Item, enclosure: &rss::Enclosure) -> anyhow::Result<Fee
         .and_then(published)
         .with_context(|| format!("feed item `{title}`"))?;
     Ok(FeedItem {
-        guid: guid(item).unwrap_or_else(|| enclosure.url().to_owned()),
+        // Without a guid the enclosure URL identifies the episode, minus its query string: that
+        // is where private feeds put their tokens, which rotate and must never be printed.
+        guid: guid(item).unwrap_or_else(|| super::fetch::redacted(enclosure.url()).to_owned()),
         description: plain_text(description(item, itunes)),
         published,
         season: number(itunes.and_then(ITunesItemExtension::season), "itunes:season", &title),
@@ -163,9 +165,9 @@ mod tests {
     }
 
     #[test]
-    fn falls_back_to_the_enclosure_url_as_guid() {
+    fn falls_back_to_the_enclosure_url_without_its_token_as_guid() {
         let items = parse(FEED).unwrap();
-        assert_eq!(items[1].guid, "https://example.com/audio/bonus.m4a?token=x");
+        assert_eq!(items[1].guid, "https://example.com/audio/bonus.m4a");
         assert_eq!(items[2].guid, "https://example.com/audio/trailer.mp3");
     }
 

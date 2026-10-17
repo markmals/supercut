@@ -37,6 +37,7 @@ pub struct Rendered {
 
 pub fn render(context: &Context, request: Request) -> anyhow::Result<Rendered> {
     let resolved = resolve::resolve(context, request.plan)?;
+    crate::plan::check::require_valid_cuts(&resolved)?;
     let timeline = timeline::build(&resolved.input);
     for warning in &timeline.warnings {
         eprintln!("warning: {warning}");

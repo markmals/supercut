@@ -2,8 +2,12 @@ use serde::Serialize;
 
 use crate::commands::Context;
 use crate::library::{EpisodeIndex, ShowLibrary};
+use crate::error::CliError;
 use crate::plan::{Cut, Plan, lint, resolve, timeline};
 use crate::timecode::Time;
+
+/// An episode must keep at least this much audio to belong in a supercut.
+const MIN_KEPT_SECONDS: f64 = 1.0;
 
 /// What `plan check` reports: errors stop a render, warnings are for the reviewer to judge.
 #[derive(Debug, Serialize)]
@@ -32,16 +36,15 @@ pub fn check(context: &Context, plan: &Plan) -> anyhow::Result<Report> {
     }
 
     let resolved = resolve::resolve(context, plan)?;
-    let mut errors = Vec::new();
-    for episode in &resolved.input.episodes {
-        errors.extend(episode_errors(&episode.id, &episode.cuts, episode.duration));
+    let errors = cut_errors(&resolved);
+    // A timeline only means something for cuts that hold together.
+    if !errors.is_empty() {
+        return Ok(Report { ok: false, errors, warnings: Vec::new(), output_duration: Time(0.0), episodes: Vec::new() });
     }
 
     let timeline = timeline::build(&resolved.input);
     let mut warnings = timeline.warnings.clone();
-    if errors.is_empty() {
-        warnings.extend(lint::lint(&resolved)?);
-    }
+    warnings.extend(lint::lint(&resolved)?);
     let episodes = timeline
         .episodes
         .iter()
@@ -52,6 +55,24 @@ pub fn check(context: &Context, plan: &Plan) -> anyhow::Result<Report> {
         })
         .collect();
     Ok(Report { ok: errors.is_empty(), errors, warnings, output_duration: Time(timeline.duration()), episodes })
+}
+
+/// Every episode's cut errors.
+fn cut_errors(resolved: &resolve::Resolved) -> Vec<String> {
+    resolved.input.episodes.iter().flat_map(|episode| episode_errors(&episode.id, &episode.cuts, episode.duration)).collect()
+}
+
+/// Refuses to work from a plan whose cuts don't hold together, so render and preview never
+/// quietly reinterpret what `plans validate` would reject.
+pub fn require_valid_cuts(resolved: &resolve::Resolved) -> anyhow::Result<()> {
+    let errors = cut_errors(resolved);
+    if errors.is_empty() {
+        return Ok(());
+    }
+    let invalid = CliError::invalid(format!("the plan's cuts are invalid: {}", errors.join("; ")))
+        .hint("supercut plans validate <plan>")
+        .detail("errors", errors);
+    Err(invalid.into())
 }
 
 /// Everything that has to exist before the audio can be measured at all.
@@ -90,11 +111,16 @@ fn audio_error(library: &ShowLibrary, index: &EpisodeIndex, id: &str) -> Option<
     (!path.exists()).then(|| format!("{id}: the audio file {} is missing", path.display()))
 }
 
-/// Cuts have to be ordered, disjoint and inside the episode before their fades mean anything.
+/// Cuts have to be ordered, disjoint and inside the episode, and leave some of it, before their
+/// fades mean anything.
 pub fn episode_errors(id: &str, cuts: &[Cut], duration: f64) -> Vec<String> {
     let errors = range_errors(id, cuts, duration);
     if !errors.is_empty() {
         return errors;
+    }
+    let removed: f64 = cuts.iter().map(|cut| cut_end(cut, duration) - cut.start.seconds()).sum();
+    if duration - removed < MIN_KEPT_SECONDS {
+        return vec![format!("{id}: the cuts remove the whole episode; take it out of the plan instead")];
     }
     fade_errors(id, cuts, duration)
 }
@@ -123,13 +149,19 @@ fn fade_errors(id: &str, cuts: &[Cut], duration: f64) -> Vec<String> {
     let mut errors = Vec::new();
     for (index, cut) in cuts.iter().enumerate() {
         let label = format!("{id} cut {} at {}", index + 1, cut.start);
-        let before = cut.start.seconds() - cuts[..index].last().map_or(0.0, |previous| cut_end(previous, duration));
+        let previous = index.checked_sub(1).map(|previous| &cuts[previous]);
+        let before = cut.start.seconds() - previous.map_or(0.0, |previous| cut_end(previous, duration));
         let after = cuts.get(index + 1).map_or(duration, |next| next.start.seconds()) - cut_end(cut, duration);
-        if let Some(error) = fade_error(&label, "fade_out", cut.fade_out, before) {
-            errors.push(error);
-        }
-        if let Some(error) = fade_error(&label, "fade_in", cut.fade_in, after) {
-            errors.push(error);
+        errors.extend(fade_error(&label, "fade_out", cut.fade_out, before));
+        errors.extend(fade_error(&label, "fade_in", cut.fade_in, after));
+        // The audio kept between two cuts fades in from the first and out into the second.
+        let shared = previous.and_then(|previous| previous.fade_in).zip(cut.fade_out);
+        if let Some((fade_in, fade_out)) = shared
+            && fade_in + fade_out > before
+        {
+            errors.push(format!(
+                "{label}: the {before:.3} s kept before it cannot hold the cut above's {fade_in} s fade_in and this cut's {fade_out} s fade_out"
+            ));
         }
     }
     errors
@@ -203,5 +235,25 @@ mod tests {
         only.fade_in = Some(-1.0);
         let errors = episode_errors("a", &[only], 100.0);
         assert_eq!(errors, vec!["a cut 1 at 0:10.000: fade_in of -1 s is negative".to_string()]);
+    }
+
+    #[test]
+    fn rejects_cutting_the_whole_episode() {
+        let whole = Cut { end: None, ..cut(0.0, 0.0) };
+        let errors = episode_errors("a", &[whole], 100.0);
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(errors[0].contains("remove the whole episode"), "{}", errors[0]);
+    }
+
+    #[test]
+    fn rejects_fades_that_cannot_share_the_audio_between_two_cuts() {
+        // One second kept between the cuts, faded in for 0.8 s and out for 0.8 s.
+        let mut first = cut(10.0, 20.0);
+        first.fade_in = Some(0.8);
+        let mut second = cut(21.0, 30.0);
+        second.fade_out = Some(0.8);
+        let errors = episode_errors("a", &[first, second], 100.0);
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(errors[0].contains("cannot hold"), "{}", errors[0]);
     }
 }

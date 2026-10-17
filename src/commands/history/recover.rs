@@ -23,6 +23,9 @@ pub struct Args {
     /// Candidate source episodes (default: every downloaded episode).
     #[command(flatten)]
     candidates: Selection,
+    /// Replace an earlier recovery of this export, including its plan (which you may have edited).
+    #[arg(long)]
+    force: bool,
 }
 
 #[derive(Serialize)]
@@ -49,6 +52,13 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
     let (_, show) = context.show(&args.show)?;
     if !args.export.is_file() {
         return Err(CliError::not_found(format!("no export at {}", args.export.display())).into());
+    }
+    let name = args.export.file_stem().map(|stem| stem.to_string_lossy().into_owned()).unwrap_or_default();
+    let earlier = history::plan_path(&show, &name);
+    if earlier.exists() && !args.force {
+        let conflict = CliError::conflict(format!("{name} was already recovered; its plan is at {}", earlier.display()))
+            .hint("pass --force to recover it again and replace that plan");
+        return Err(conflict.into());
     }
     let index = show.load_synced_index()?;
     let candidates = if args.candidates.ids.is_empty() && args.candidates.season.is_none() {

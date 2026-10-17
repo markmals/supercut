@@ -82,6 +82,10 @@ pub fn classify(name: &str, export: &str, duration: f64, pieces: Vec<Piece>) -> 
         previous_episode = Some(piece.episode.clone());
         recovery.pieces.push(piece);
     }
+    // Whatever plays after the last matched piece is outro material or a missing episode too.
+    if duration - cursor >= MIN_GAP_SECONDS {
+        extend(&mut pending, cursor, duration, None);
+    }
     if let Some(interstitial) = pending.take() {
         close(&mut recovery, interstitial);
     }
@@ -223,6 +227,18 @@ mod tests {
         let first = &recovery.interstitials[0];
         assert_eq!((first.export_start, first.export_end), (1100.0, 1110.0), "gap + sting + gap form one interstitial");
         assert!(recovery.unmatched.is_empty(), "{:?}", recovery.unmatched);
+    }
+
+    #[test]
+    fn audio_after_the_last_match_is_accounted_for() {
+        let missing = classify("x", "x.mp3", 5000.0, vec![piece("a", 0.0, 50.0, 600.0)]);
+        assert_eq!(missing.unmatched.len(), 1, "an unmatched hour at the end is reported");
+        assert_eq!((missing.unmatched[0].export_start, missing.unmatched[0].export_end), (600.0, 5000.0));
+        assert_eq!(missing.warnings.len(), 1);
+
+        let outro = classify("x", "x.mp3", 603.0, vec![piece("a", 0.0, 50.0, 600.0)]);
+        assert!(outro.unmatched.is_empty());
+        assert_eq!(outro.interstitials.len(), 1, "a closing sting is material, not a missing episode");
     }
 
     #[test]

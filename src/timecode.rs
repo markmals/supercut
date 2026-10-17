@@ -48,6 +48,9 @@ impl FromStr for Time {
             let value: f64 = part.parse().with_context(|| format!("invalid time `{text}`"))?;
             seconds = seconds * 60.0 + value;
         }
+        if !seconds.is_finite() {
+            bail!("invalid time `{text}`: not a finite number of seconds");
+        }
         Ok(Time(if negative { -seconds } else { seconds }))
     }
 }
@@ -84,6 +87,8 @@ mod tests {
         assert_eq!("1:01:15.5".parse::<Time>().unwrap(), Time(3675.5));
         assert!("1::2".parse::<Time>().is_err());
         assert!("1:2:3:4".parse::<Time>().is_err());
+        assert!("NaN".parse::<Time>().is_err(), "a plan time must be a real position");
+        assert!("1:inf".parse::<Time>().is_err());
     }
 
     #[test]

@@ -117,16 +117,16 @@ fn push_episode(timeline: &mut Timeline, episode: &InputEpisode, target_lufs: f6
 }
 
 /// One stretch of an episode that survives its cuts.
-struct Kept {
-    start: f64,
-    end: f64,
-    fade_in: f64,
-    fade_out: f64,
+pub struct Kept {
+    pub start: f64,
+    pub end: f64,
+    pub fade_in: f64,
+    pub fade_out: f64,
 }
 
 /// The complement of `cuts` in `[0, duration]`. Every cut edge fades; the episode's own start
 /// and end do not, because nothing is spliced there.
-fn kept_ranges(cuts: &[Cut], duration: f64) -> Vec<Kept> {
+pub fn kept_ranges(cuts: &[Cut], duration: f64) -> Vec<Kept> {
     let mut ranges = Vec::new();
     let mut position = 0.0;
     let mut fade_in = 0.0;
@@ -178,8 +178,8 @@ fn map_chapters(episode: &InputEpisode, pieces: &[Piece], warnings: &mut Vec<Str
 /// joins the first chapter; a long one gets its own, titled after the episode. Either way the
 /// episode's first chapter carries its show notes, for players that read chapters flat.
 fn lead_in(episode: &InputEpisode, pieces: &[Piece], mapped: &mut Vec<SegmentChapter>) {
-    let start = pieces[0].output_start;
-    let Some(first) = mapped.first_mut() else { return };
+    let (Some(piece), Some(first)) = (pieces.first(), mapped.first_mut()) else { return };
+    let start = piece.output_start;
     if first.start - start <= LEAD_IN_MERGE_SECONDS {
         first.start = start;
         first.description.get_or_insert_with(|| episode.description.clone());
