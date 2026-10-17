@@ -151,7 +151,7 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "labels create",
         effects: &[PaidApi, WritesLibrary],
-        output: "[{id, windows, segments: [{label, start, end, probability}], input_tokens}]",
+        output: "[{id, windows, segments: [{label, start, end, probability}], input_tokens}]; --dry-run: [{id, windows, requests, estimated_input_tokens}]",
         example: "supercut labels create the-neighborhood-listen --season 10 --dry-run",
         keywords: &["classify", "segments", "jev", "find ads", "detect", "advertisements"],
     },
