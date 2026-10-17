@@ -5,6 +5,7 @@ pub mod download;
 pub mod adopt;
 pub mod analyze;
 pub mod inspect;
+pub mod clip;
 
 use clap::Subcommand;
 
@@ -26,6 +27,7 @@ enum Operation {
     Adopt(adopt::Args),
     Analyze(analyze::Args),
     Inspect(inspect::Args),
+    Clip(clip::Args),
 }
 
 pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
@@ -37,5 +39,6 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
         Operation::Adopt(args) => adopt::run(context, args),
         Operation::Analyze(args) => analyze::run(context, args),
         Operation::Inspect(args) => inspect::run(context, args),
+        Operation::Clip(args) => clip::run(context, args),
     }
 }

@@ -135,6 +135,13 @@ pub const OPERATIONS: &[Operation] = &[
         keywords: &["waveform", "silence", "music", "cut point", "where to cut", "fade", "spectrogram"],
     },
     Operation {
+        path: "episodes clip",
+        effects: &[WritesOutput],
+        output: "{episode, from, to, seconds, output, start_db, end_db, warnings, dry_run}; a warning names where sound cut off at an edge starts or dies away",
+        example: "supercut episodes clip the-neighborhood-listen s10e01 --from 29:17.83 --to 29:22.66 --out sting.flac --dry-run",
+        keywords: &["extract", "interstitial", "theme", "jingle", "sting", "export audio", "save a piece"],
+    },
+    Operation {
         path: "transcripts create",
         effects: &[WritesLibrary, HeavyCompute],
         output: "[{id, seconds, words, unreliable_spans, status: transcribed|skipped|would-transcribe}]",
