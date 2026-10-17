@@ -5,7 +5,7 @@ use crate::error::CliError;
 use crate::library::write_atomically;
 use crate::output::print_json;
 
-const STARTER: &str = include_str!("../starter-config.toml");
+const STARTER: &str = include_str!("starter-config.toml");
 
 /// Write a commented starter config file at the config path.
 ///

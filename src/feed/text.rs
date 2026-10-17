@@ -7,14 +7,32 @@ pub fn plain_text(html: &str) -> String {
     decoded.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// A title reduced for matching: lowercase words, no punctuation, single spaces.
+/// A title reduced for matching: lowercase words, no punctuation, single spaces. A leading
+/// episode number (`13. Treehouse Terror`) is dropped, because file tags carry one where feeds
+/// usually do not, and `w/` counts as `with`, which the two spell differently just as often.
 pub fn normalize_title(title: &str) -> String {
-    title
+    without_leading_number(title.trim())
         .split(|c: char| !c.is_alphanumeric())
         .filter(|word| !word.is_empty())
-        .map(str::to_lowercase)
+        .map(|word| match word.to_lowercase().as_str() {
+            "w" => "with".to_owned(),
+            lowercase => lowercase.to_owned(),
+        })
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// Only a number followed by punctuation counts, so `911 Calls` keeps its number.
+fn without_leading_number(title: &str) -> &str {
+    let digits = title.len() - title.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+    if digits == 0 {
+        return title;
+    }
+    let rest = title[digits..].trim_start();
+    match rest.strip_prefix(['.', ')', '-', ':']) {
+        Some(rest) => rest.trim_start(),
+        None => title,
+    }
 }
 
 /// Entities are decoded after this, so markup written as `&lt;b&gt;` survives as text.
@@ -73,9 +91,21 @@ mod tests {
     #[test]
     fn normalized_titles_ignore_case_punctuation_and_spacing() {
         assert_eq!(
-            normalize_title("13. Treehouse Terror,  Toys—from Burnt w/ Mitch Silpa"),
-            normalize_title("13 treehouse terror toys from burnt w mitch silpa")
+            normalize_title("Treehouse Terror,  Toys—from Burnt w/ Mitch Silpa"),
+            normalize_title("treehouse terror! toys from burnt w mitch silpa")
         );
         assert_ne!(normalize_title("Bonus Room 12"), normalize_title("Bonus Room 13"));
+    }
+
+    #[test]
+    fn normalized_titles_ignore_a_numbered_prefix_but_not_a_number_in_the_title() {
+        assert_eq!(normalize_title("13. Treehouse Terror"), normalize_title("Treehouse Terror"));
+        assert_eq!(normalize_title("7 - Treehouse Terror"), normalize_title("Treehouse Terror"));
+        assert_ne!(normalize_title("911 Calls"), normalize_title("Calls"));
+    }
+
+    #[test]
+    fn normalized_titles_spell_out_the_w_abbreviation() {
+        assert_eq!(normalize_title("Stolen Wood w/ Bobby"), normalize_title("Stolen Wood with Bobby"));
     }
 }

@@ -30,8 +30,8 @@ fn feed_item(item: &rss::Item, enclosure: &rss::Enclosure) -> anyhow::Result<Fee
         guid: guid(item).unwrap_or_else(|| enclosure.url().to_owned()),
         description: plain_text(description(item, itunes)),
         published,
-        season: number(itunes.and_then(ITunesItemExtension::season), "itunes:season")?,
-        number: number(itunes.and_then(ITunesItemExtension::episode), "itunes:episode")?,
+        season: number(itunes.and_then(ITunesItemExtension::season), "itunes:season", &title),
+        number: number(itunes.and_then(ITunesItemExtension::episode), "itunes:episode", &title),
         kind: kind(itunes.and_then(ITunesItemExtension::episode_type))?,
         duration: itunes
             .and_then(ITunesItemExtension::duration)
@@ -65,12 +65,17 @@ fn published(pub_date: &str) -> anyhow::Result<Timestamp> {
     Ok(zoned.timestamp())
 }
 
-fn number(value: Option<&str>, field: &str) -> anyhow::Result<Option<u32>> {
-    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
-        return Ok(None);
-    };
-    let parsed = value.parse().with_context(|| format!("{field} is `{value}`, not a whole number"))?;
-    Ok(Some(parsed))
+/// Feeds number half-episodes `235.5` and such. Those cannot become `s07e235.5`, so they are
+/// filed unnumbered, loudly.
+fn number(value: Option<&str>, field: &str, title: &str) -> Option<u32> {
+    let value = value.map(str::trim).filter(|value| !value.is_empty())?;
+    match value.parse() {
+        Ok(number) => Some(number),
+        Err(_) => {
+            eprintln!("`{title}`: {field} is `{value}`, not a whole number; filing it unnumbered");
+            None
+        }
+    }
 }
 
 fn kind(episode_type: Option<&str>) -> anyhow::Result<EpisodeKind> {

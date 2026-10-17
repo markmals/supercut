@@ -57,7 +57,7 @@ pub fn run(context: &Context, _args: Args) -> anyhow::Result<()> {
 }
 
 /// Where `rules get` looks, taken from the path it builds for a show.
-pub fn rules_dir(context: &Context) -> PathBuf {
+fn rules_dir(context: &Context) -> PathBuf {
     context.rules_path("show").parent().map(Path::to_path_buf).unwrap_or_default()
 }
 
