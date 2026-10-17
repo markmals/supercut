@@ -14,8 +14,11 @@ const PADDING_SECONDS: f64 = 0.1;
 /// moment rather than clipping a sting mid-note.
 const QUIETEST_WITHIN_SECONDS: f64 = 1.5;
 /// Seconds of pause a second of distance from the labeled edge is worth: a long sting wins over
-/// a nearer breath, a distant one does not.
-const PROXIMITY_WEIGHT: f64 = 0.1;
+/// a nearer breath, a distant pause does not.
+const PROXIMITY_WEIGHT: f64 = 0.3;
+/// Furthest a cut edge may move from the labeled boundary. The fine pass places boundaries to
+/// the utterance, so a pause further out belongs to the speech on the other side.
+const MAX_EDGE_SHIFT_SECONDS: f64 = 6.0;
 /// Fade for an edge that lands on audio still playing.
 const LOUD_EDGE_FADE_SECONDS: f64 = 0.25;
 
@@ -155,8 +158,9 @@ fn best_gap<'a>(
     keeps_the_cut: impl Fn(&&'a Gap) -> bool,
 ) -> Option<&'a Gap> {
     let score = |gap: &Gap| gap.seconds() - PROXIMITY_WEIGHT * (gap.middle() - boundary).abs();
+    let (low, high) = (search.0.max(boundary - MAX_EDGE_SHIFT_SECONDS), search.1.min(boundary + MAX_EDGE_SHIFT_SECONDS));
     gaps.iter()
-        .filter(|gap| gap.end > search.0 && gap.start < search.1)
+        .filter(|gap| gap.end > low && gap.start < high)
         .filter(keeps_the_cut)
         .reduce(|best, gap| if score(gap) > score(best) { gap } else { best })
 }
@@ -229,9 +233,18 @@ mod tests {
     fn cut_edges_move_onto_the_pauses_that_fence_the_ad() {
         let (transcript, envelope) = ad_episode();
         let gaps = gaps(&transcript, 260.0);
-        // The labels put the ad most of a window off on each side.
-        let edges = refine((93.0, 170.0), Policy::default(), around_the_ad(), &gaps, &envelope);
+        // The labels put the ad a few seconds off on each side.
+        let edges = refine((97.0, 163.0), Policy::default(), around_the_ad(), &gaps, &envelope);
         assert!((edges.start - 100.0).abs() < 1e-6, "cut starts at {}", edges.start);
+        assert!((edges.end - 159.9).abs() < 1e-6, "cut ends at {}", edges.end);
+    }
+
+    #[test]
+    fn a_long_pause_well_past_the_boundary_does_not_pull_the_cut_into_the_hosts() {
+        // The hosts are back at 160 s; at 175 s one of them pauses for four seconds.
+        let transcript = transcript(&[(0.0, 100.0), (102.0, 158.0), (160.0, 175.0), (179.0, 260.0)]);
+        let envelope = envelope(260.0, &[(158.0, 160.0)]);
+        let edges = refine((97.0, 160.5), Policy::default(), around_the_ad(), &gaps(&transcript, 260.0), &envelope);
         assert!((edges.end - 159.9).abs() < 1e-6, "cut ends at {}", edges.end);
     }
 
@@ -239,7 +252,7 @@ mod tests {
     fn a_cut_edge_on_music_fades() {
         let (transcript, envelope) = ad_episode();
         let gaps = gaps(&transcript, 260.0);
-        let edges = refine((93.0, 170.0), Policy::default(), around_the_ad(), &gaps, &envelope);
+        let edges = refine((97.0, 163.0), Policy::default(), around_the_ad(), &gaps, &envelope);
         assert_eq!(edges.fade_out, None, "the ad is preceded by room tone");
         assert_eq!(edges.fade_in, Some(0.25), "the hosts come back while the sting still plays");
     }
@@ -249,7 +262,7 @@ mod tests {
         let (transcript, envelope) = stung_episode();
         let gaps = gaps(&transcript, 260.0);
         let policy = Policy { start: CutStart::BeforeOwnSpeech, end: CutEnd::BeforeNextSpeech };
-        let edges = refine((93.0, 170.0), policy, around_the_ad(), &gaps, &envelope);
+        let edges = refine((97.0, 163.0), policy, around_the_ad(), &gaps, &envelope);
         assert!((edges.start - 101.6).abs() < 0.02, "cut starts at {}", edges.start);
         assert_eq!(edges.fade_out, None, "the sting has finished by then");
         assert!((edges.end - 159.9).abs() < 1e-6, "the play-out sting is still cut");
@@ -260,7 +273,7 @@ mod tests {
         let (transcript, envelope) = stung_episode();
         let gaps = gaps(&transcript, 260.0);
         let policy = Policy { start: CutStart::AfterPreviousSpeech, end: CutEnd::AfterOwnSpeech };
-        let edges = refine((93.0, 170.0), policy, around_the_ad(), &gaps, &envelope);
+        let edges = refine((97.0, 163.0), policy, around_the_ad(), &gaps, &envelope);
         assert!((edges.end - 158.6).abs() < 0.02, "cut ends at {}", edges.end);
         assert_eq!(edges.fade_in, None, "the sting has finished by then");
         assert_eq!(edges.fade_out, Some(0.25), "the lead-in sting is cut mid-note");

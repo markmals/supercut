@@ -53,9 +53,9 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "config get",
         effects: &[ReadOnly],
-        output: "{config_file, exists, library_dir, output_dir, sideload_dir, rules_dir, shows, transcription, jev, loudness}",
+        output: "{config_file, exists, library_dir, output_dir, sideload_dir, rules_dir, shows: [{show, title, feeds, artwork, interstitial, segments}], transcription, loudness, jev}",
         example: "supercut config get",
-        keywords: &["context", "settings", "paths", "where", "library"],
+        keywords: &["context", "settings", "paths", "where", "library", "interstitial", "artwork", "segments", "show settings"],
     },
     Operation {
         path: "config init",
@@ -130,7 +130,7 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "episodes inspect",
         effects: &[ReadOnly],
-        output: "{frames: [{time, level_db, words}], quiet_spans, words} around the moment",
+        output: "{from, to, quiet_threshold_db, transcribed, levels: [{at, db}], words: [{start, end, text}], non_speech: [{start, end, seconds, kind, mean_db}], quiet_spans: [{start, end}]}; --output text for one line per step",
         example: "supercut episodes inspect the-neighborhood-listen s10e01 --at 29:20 --window 20",
         keywords: &["waveform", "silence", "music", "cut point", "where to cut", "fade", "spectrogram"],
     },
@@ -187,7 +187,7 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "plans compare",
         effects: &[ReadOnly],
-        output: "{episodes: [{id, matched: [{a, b, start_delta, end_delta, shared_seconds}], only_in_a, only_in_b}], only_in_a, only_in_b, summary}",
+        output: "{episodes: [{id, matched: [{a, b, start_delta, end_delta, shared_seconds}], only_in_a, only_in_b}], only_in_a, only_in_b, summary}; compares cuts of episodes both plans contain, so the plans must share episodes",
         example: "supercut plans compare draft.json history.plan.json",
         keywords: &["diff", "difference", "agree", "match past cuts", "evaluate draft", "versus"],
     },

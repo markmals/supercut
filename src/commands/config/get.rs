@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 
 use crate::commands::Context;
-use crate::config::{Config, LoudnessConfig, TranscriptionConfig};
+use crate::config::{Config, LoudnessConfig, SegmentKind, ShowConfig, TranscriptionConfig};
 use crate::output::print_json;
 
 /// Show the effective configuration and where supercut keeps its files, secrets redacted.
@@ -23,8 +23,8 @@ struct Report<'a> {
     sideload_dir: Option<&'a Path>,
     /// Holds `<show>.md`, the editorial rules `rules get` prints.
     rules_dir: PathBuf,
-    /// Slugs every command takes.
-    shows: Vec<&'a str>,
+    /// Every configured show and the settings rendering uses (feed URLs left out).
+    shows: Vec<Show<'a>>,
     transcription: &'a TranscriptionConfig,
     loudness: &'a LoudnessConfig,
     jev: Jev<'a>,
@@ -40,6 +40,29 @@ struct Jev<'a> {
     api_key_program: Option<&'a str>,
 }
 
+#[derive(Serialize)]
+struct Show<'a> {
+    show: &'a str,
+    title: &'a str,
+    feeds: usize,
+    artwork: Option<&'a Path>,
+    /// Played between episodes in every supercut of the show.
+    interstitial: Option<&'a Path>,
+    /// The segments `labels create` sorts episodes into; `cut` ones `plans draft` removes.
+    segments: &'a [SegmentKind],
+}
+
+fn show<'a>(slug: &'a str, settings: &'a ShowConfig) -> Show<'a> {
+    Show {
+        show: slug,
+        title: &settings.title,
+        feeds: settings.feeds.len(),
+        artwork: settings.artwork.as_deref(),
+        interstitial: settings.interstitial.as_deref(),
+        segments: &settings.segments,
+    }
+}
+
 pub fn run(context: &Context, _args: Args) -> anyhow::Result<()> {
     let config = &context.config;
     print_json(&Report {
@@ -49,7 +72,7 @@ pub fn run(context: &Context, _args: Args) -> anyhow::Result<()> {
         output_dir: config.output_dir.as_deref(),
         sideload_dir: config.sideload_dir.as_deref(),
         rules_dir: rules_dir(context),
-        shows: config.shows.keys().map(String::as_str).collect(),
+        shows: config.shows.iter().map(|(slug, settings)| show(slug, settings)).collect(),
         transcription: &config.transcription,
         loudness: &config.loudness,
         jev: jev(config),
