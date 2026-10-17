@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use super::item::FeedItem;
+use super::parse::FALLBACK_GUID_PREFIX;
 use crate::library::{Episode, EpisodeIndex};
 
 /// What one `sync` changed.
@@ -20,7 +21,7 @@ pub fn merge(index: &mut EpisodeIndex, items: &[FeedItem]) -> MergeReport {
     let mut fresh = Vec::new();
     let mut seen = HashSet::with_capacity(items.len());
     for item in items.iter().filter(|item| seen.insert(item.guid.as_str())) {
-        match known(index, &item.guid) {
+        match known(index, item) {
             Some(episode) => report.updated += usize::from(refresh(episode, item)),
             None => fresh.push(item),
         }
@@ -36,8 +37,17 @@ pub fn merge(index: &mut EpisodeIndex, items: &[FeedItem]) -> MergeReport {
     report
 }
 
-fn known<'a>(index: &'a mut EpisodeIndex, guid: &str) -> Option<&'a mut Episode> {
-    index.episodes.iter_mut().find(|episode| episode.guid == guid)
+/// The indexed episode this item is. An item without a guid of its own may have been indexed
+/// when its enclosure URL served as its id; it is the same episode if the release time and
+/// title agree, and its refresh moves it to the new id.
+fn known<'a>(index: &'a mut EpisodeIndex, item: &FeedItem) -> Option<&'a mut Episode> {
+    let position = index.episodes.iter().position(|episode| episode.guid == item.guid).or_else(|| {
+        item.guid.starts_with(FALLBACK_GUID_PREFIX).then_some(())?;
+        index.episodes.iter().position(|episode| {
+            episode.guid == episode.enclosure_url && episode.published == item.published && episode.title == item.title
+        })
+    })?;
+    index.episodes.get_mut(position)
 }
 
 /// Whether the feed had anything new to say about an episode we already know.
@@ -110,5 +120,40 @@ mod tests {
         assert_eq!(report.added, ["s01e01"]);
         assert_eq!(index.episodes.len(), 1);
         assert_eq!(index.get("s01e01").unwrap().title, "From the first feed");
+    }
+
+    #[test]
+    fn an_episode_indexed_under_its_old_url_id_keeps_its_id_and_audio() {
+        // Indexed when a guid-less item's enclosure URL (token included) was its id.
+        let mut index = EpisodeIndex::default();
+        let mut old = item("a", "Bonus", 1, None);
+        old.guid = "https://example.com/bonus.mp3?token=old".into();
+        old.enclosure_url = old.guid.clone();
+        merge(&mut index, &[old]);
+        let id = index.episodes[0].id.clone();
+        index.episodes[0].audio_file = Some(format!("{id}.mp3"));
+
+        let mut now = item("unused", "Bonus", 1, None);
+        now.guid = super::super::parse::fallback_guid(now.published, "Bonus");
+        now.enclosure_url = "https://example.com/bonus.mp3?token=new".into();
+        let report = merge(&mut index, &[now]);
+
+        assert!(report.added.is_empty(), "{:?}", report.added);
+        assert_eq!(index.episodes.len(), 1);
+        assert_eq!(index.episodes[0].id, id);
+        assert_eq!(index.episodes[0].audio_file.as_deref(), Some(format!("{id}.mp3").as_str()));
+        assert!(!index.episodes[0].guid.contains("token"), "the id moves off the tokened URL");
+    }
+
+    #[test]
+    fn guid_less_items_differing_only_by_query_stay_apart() {
+        let mut first = item("x", "Part 1", 1, None);
+        first.guid = super::super::parse::fallback_guid(first.published, "Part 1");
+        first.enclosure_url = "https://example.com/stream?episode=1".into();
+        let mut second = item("x", "Part 2", 1, None);
+        second.guid = super::super::parse::fallback_guid(second.published, "Part 2");
+        second.enclosure_url = "https://example.com/stream?episode=2".into();
+        let mut index = EpisodeIndex::default();
+        assert_eq!(merge(&mut index, &[first, second]).added.len(), 2);
     }
 }

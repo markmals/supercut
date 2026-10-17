@@ -66,10 +66,12 @@ fn loop_at(words: &[&Word], keys: &[String], start: usize) -> Option<Loop> {
     (1..=MAX_PHRASE_WORDS)
         .filter_map(|phrase| {
             let repeats = repeats_of(keys, start, phrase);
+            if repeats < MIN_REPEATS {
+                return None;
+            }
             let end = start + repeats * phrase;
             let span = words[start].start..words[end - 1].end;
-            let long_enough = span.end - span.start >= MIN_SPAN_SECONDS;
-            (repeats >= MIN_REPEATS && long_enough).then(|| Loop {
+            (span.end - span.start >= MIN_SPAN_SECONDS).then(|| Loop {
                 words: start..end,
                 span: UnreliableSpan {
                     start: span.start,
@@ -155,5 +157,13 @@ mod tests {
         assert!(span.end - span.start > 20.0);
         // Only the half-phrase the fixture ends on is left over.
         assert_eq!(transcript.words().map(|word| word.text.as_str()).collect::<Vec<_>>(), ["I"]);
+    }
+
+    #[test]
+    fn a_transcript_shorter_than_a_loop_phrase_is_left_alone() {
+        let mut transcript = transcript("0.0 0.4 Hello.");
+        super::strip_loops(&mut transcript);
+        assert_eq!(transcript.words().count(), 1);
+        assert!(transcript.unreliable.is_empty());
     }
 }

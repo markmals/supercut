@@ -3,7 +3,7 @@ use serde::Serialize;
 use crate::commands::Context;
 use crate::library::{EpisodeIndex, ShowLibrary};
 use crate::error::CliError;
-use crate::plan::{Cut, Plan, lint, resolve, timeline};
+use crate::plan::{Cut, EDGE_FADE_SECONDS, Plan, lint, resolve, timeline};
 use crate::timecode::Time;
 
 /// An episode must keep at least this much audio to belong in a supercut.
@@ -154,14 +154,18 @@ fn fade_errors(id: &str, cuts: &[Cut], duration: f64) -> Vec<String> {
         let after = cuts.get(index + 1).map_or(duration, |next| next.start.seconds()) - cut_end(cut, duration);
         errors.extend(fade_error(&label, "fade_out", cut.fade_out, before));
         errors.extend(fade_error(&label, "fade_in", cut.fade_in, after));
-        // The audio kept between two cuts fades in from the first and out into the second.
-        let shared = previous.and_then(|previous| previous.fade_in).zip(cut.fade_out);
-        if let Some((fade_in, fade_out)) = shared
-            && fade_in + fade_out > before
+        // The audio kept between two cuts fades in from the first and out into the second; an
+        // edge without a fade of its own still gets the short declicking one.
+        if let Some(previous) = previous
+            && (previous.fade_in.is_some() || cut.fade_out.is_some())
         {
-            errors.push(format!(
-                "{label}: the {before:.3} s kept before it cannot hold the cut above's {fade_in} s fade_in and this cut's {fade_out} s fade_out"
-            ));
+            let fade_in = previous.fade_in.unwrap_or(EDGE_FADE_SECONDS);
+            let fade_out = cut.fade_out.unwrap_or(EDGE_FADE_SECONDS);
+            if fade_in + fade_out > before {
+                errors.push(format!(
+                    "{label}: the {before:.3} s kept before it cannot hold the cut above's {fade_in} s fade_in and this cut's {fade_out} s fade_out"
+                ));
+            }
         }
     }
     errors
@@ -253,6 +257,16 @@ mod tests {
         let mut second = cut(21.0, 30.0);
         second.fade_out = Some(0.8);
         let errors = episode_errors("a", &[first, second], 100.0);
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(errors[0].contains("cannot hold"), "{}", errors[0]);
+    }
+
+    #[test]
+    fn an_explicit_fade_must_leave_room_for_the_default_one_on_the_other_edge() {
+        // One second kept, all of it faded in: the declicking fade-out into the next cut is lost.
+        let mut first = cut(10.0, 20.0);
+        first.fade_in = Some(1.0);
+        let errors = episode_errors("a", &[first, cut(21.0, 30.0)], 100.0);
         assert_eq!(errors.len(), 1, "{errors:?}");
         assert!(errors[0].contains("cannot hold"), "{}", errors[0]);
     }

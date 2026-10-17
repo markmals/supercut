@@ -54,10 +54,12 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
         return Err(CliError::not_found(format!("no export at {}", args.export.display())).into());
     }
     let name = args.export.file_stem().map(|stem| stem.to_string_lossy().into_owned()).unwrap_or_default();
-    let earlier = history::plan_path(&show, &name);
-    if earlier.exists() && !args.force {
-        let conflict = CliError::conflict(format!("{name} was already recovered; its plan is at {}", earlier.display()))
-            .hint("pass --force to recover it again and replace that plan");
+    let earlier = [history::recovery_path(&show, &name), history::plan_path(&show, &name)];
+    if let Some(existing) = earlier.iter().find(|path| path.exists())
+        && !args.force
+    {
+        let conflict = CliError::conflict(format!("{name} was already recovered: {} exists", existing.display()))
+            .hint("pass --force to recover it again and replace the recovery and its plan");
         return Err(conflict.into());
     }
     let index = show.load_synced_index()?;
