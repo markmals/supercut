@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::CliError;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Episode {
     /// Stable short id: `s10e01` for numbered episodes, `<date>-<title words>` otherwise.
     pub id: String,

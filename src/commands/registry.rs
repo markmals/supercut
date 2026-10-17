@@ -60,7 +60,7 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "config init",
         effects: &[WritesConfig],
-        output: "{config_file}",
+        output: "{config_file, action}",
         example: "supercut config init --dry-run",
         keywords: &["setup", "create config", "starter"],
     },
@@ -102,21 +102,21 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "episodes get",
         effects: &[ReadOnly],
-        output: "the episode's metadata and local files",
+        output: "the episode's feed metadata, plus {files: {audio, transcript, labels, analysis}} with each path and whether it exists",
         example: "supercut episodes get the-neighborhood-listen s10e01",
         keywords: &["details", "description", "metadata"],
     },
     Operation {
         path: "episodes download",
         effects: &[Network, WritesLibrary],
-        output: "[{id, file, bytes, status}]",
+        output: "[{id, title, file, bytes, status}]",
         example: "supercut episodes download the-neighborhood-listen --season 10 --dry-run",
         keywords: &["fetch", "audio", "mp3"],
     },
     Operation {
         path: "episodes adopt",
         effects: &[WritesLibrary],
-        output: "{adopted, unmatched_files, ambiguous, rejected}",
+        output: "{adopted: [{id, file, method}], unmatched_files, ambiguous: [{file, ids}], rejected: [{file, id, reason}]}",
         example: "supercut episodes adopt the-neighborhood-listen ~/Music/Podcasts --dry-run",
         keywords: &["import", "existing files", "link"],
     },
