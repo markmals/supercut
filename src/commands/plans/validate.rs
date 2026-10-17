@@ -1,9 +1,9 @@
 use crate::commands::Context;
 
-/// Render a plan into the finished supercut MP3.
+/// Check a cut plan against the library and lint every cut edge.
 #[derive(clap::Args)]
 pub struct Args {}
 
 pub fn run(_context: &Context, _args: Args) -> anyhow::Result<()> {
-    anyhow::bail!("`render` is not built yet")
+    anyhow::bail!("`plans validate` is not built yet")
 }

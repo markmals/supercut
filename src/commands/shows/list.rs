@@ -1,9 +1,9 @@
 use crate::commands::Context;
 
-/// Print an episode's transcript with timestamps.
+/// List configured shows with episode, download, transcript and label counts.
 #[derive(clap::Args)]
 pub struct Args {}
 
 pub fn run(_context: &Context, _args: Args) -> anyhow::Result<()> {
-    anyhow::bail!("`transcript` is not built yet")
+    anyhow::bail!("`shows list` is not built yet")
 }

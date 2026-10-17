@@ -1,6 +1,7 @@
 mod analysis;
 mod commands;
 mod config;
+mod error;
 mod feed;
 mod history;
 mod labels;
@@ -19,18 +20,21 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 
 use crate::commands::Context;
+use crate::error::{CliError, ErrorReport};
 
 /// Build podcast supercuts: many episodes stitched into one long MP3, minus the parts you skip.
 ///
-/// Workflow: `sync` a show's feeds, `download` and `transcribe` episodes, write a cut plan
-/// (JSON) from the transcripts and the show's rules, `plan check` it, `preview` the transitions,
-/// then `render`. `history` recovers the cuts of supercuts you made by hand, as examples.
+/// Grammar: `supercut <resource> <operation> [args]`. Discover with `supercut cli search
+/// "<task>"`, inspect with `supercut schema <resource> <operation>`. Results are JSON on stdout;
+/// progress goes to stderr; failures print `{"error": {code, message, retryable, hint}}` on
+/// stderr with a non-zero exit code.
 ///
-/// Data commands print JSON on stdout; reading commands (transcript, inspect, plan review)
-/// print text. Progress goes to stderr.
+/// Workflow: episodes sync -> episodes download -> transcripts create -> labels create ->
+/// plans draft -> plans validate / review / preview -> plans render. `history recover` learns
+/// from supercuts made by hand; `rules get` holds the show's editorial preferences.
 #[derive(Parser)]
 #[command(name = "supercut", version)]
-struct Cli {
+pub struct Cli {
     /// Config file to use instead of the platform default.
     #[arg(long, global = true, env = "SUPERCUT_CONFIG")]
     config: Option<PathBuf>,
@@ -41,55 +45,59 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    Cli(commands::cli::Args),
+    Schema(commands::schema::Args),
     Config(commands::config::Args),
+    Shows(commands::shows::Args),
     Rules(commands::rules::Args),
-    Sync(commands::sync::Args),
     Episodes(commands::episodes::Args),
-    Download(commands::download::Args),
-    Adopt(commands::adopt::Args),
-    Transcribe(commands::transcribe::Args),
-    Transcript(commands::transcript::Args),
-    Analyze(commands::analyze::Args),
-    Inspect(commands::inspect::Args),
-    Label(commands::label::Args),
-    Segments(commands::segments::Args),
-    Draft(commands::draft::Args),
-    Plan(commands::plan::Args),
-    Preview(commands::preview::Args),
-    Render(commands::render::Args),
+    Transcripts(commands::transcripts::Args),
+    Labels(commands::labels::Args),
+    Plans(commands::plans::Args),
     History(commands::history::Args),
 }
 
 fn main() -> ExitCode {
-    let cli = Cli::parse();
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(error) if !error.use_stderr() => {
+            let _ = error.print();
+            return ExitCode::SUCCESS;
+        }
+        Err(error) => {
+            let message = error.render().to_string();
+            return report(&CliError::invalid(message.trim()).hint("supercut schema <resource> <operation>").into());
+        }
+    };
     match run(cli) {
         Ok(()) => ExitCode::SUCCESS,
-        Err(error) => {
-            eprintln!("error: {error:#}");
-            ExitCode::FAILURE
-        }
+        Err(error) => report(&error),
     }
 }
 
 fn run(cli: Cli) -> anyhow::Result<()> {
     let context = Context::load(cli.config)?;
     match cli.command {
+        Command::Cli(args) => commands::cli::run(&context, args),
+        Command::Schema(args) => commands::schema::run(&context, args),
         Command::Config(args) => commands::config::run(&context, args),
+        Command::Shows(args) => commands::shows::run(&context, args),
         Command::Rules(args) => commands::rules::run(&context, args),
-        Command::Sync(args) => commands::sync::run(&context, args),
         Command::Episodes(args) => commands::episodes::run(&context, args),
-        Command::Download(args) => commands::download::run(&context, args),
-        Command::Adopt(args) => commands::adopt::run(&context, args),
-        Command::Transcribe(args) => commands::transcribe::run(&context, args),
-        Command::Transcript(args) => commands::transcript::run(&context, args),
-        Command::Analyze(args) => commands::analyze::run(&context, args),
-        Command::Inspect(args) => commands::inspect::run(&context, args),
-        Command::Label(args) => commands::label::run(&context, args),
-        Command::Segments(args) => commands::segments::run(&context, args),
-        Command::Draft(args) => commands::draft::run(&context, args),
-        Command::Plan(args) => commands::plan::run(&context, args),
-        Command::Preview(args) => commands::preview::run(&context, args),
-        Command::Render(args) => commands::render::run(&context, args),
+        Command::Transcripts(args) => commands::transcripts::run(&context, args),
+        Command::Labels(args) => commands::labels::run(&context, args),
+        Command::Plans(args) => commands::plans::run(&context, args),
         Command::History(args) => commands::history::run(&context, args),
     }
+}
+
+/// Writes the structured error to stderr and picks the exit code from its category.
+fn report(error: &anyhow::Error) -> ExitCode {
+    let report = ErrorReport::from_anyhow(error);
+    let exit = report.code.exit_code();
+    match serde_json::to_string(&serde_json::json!({ "error": report })) {
+        Ok(json) => eprintln!("{json}"),
+        Err(_) => eprintln!("error: {error:#}"),
+    }
+    ExitCode::from(exit)
 }
