@@ -9,6 +9,7 @@ use crate::library::{Episode, ShowLibrary};
 use crate::media::Probe;
 use crate::plan::timeline::{self, Clip, InputEpisode};
 use crate::plan::{InterstitialSetting, Plan};
+use crate::render::format::OutputFormat;
 use crate::transcript::Transcript;
 
 /// A plan with everything it refers to loaded and measured: ready to build a timeline from.

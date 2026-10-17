@@ -6,9 +6,9 @@ pub mod timeline;
 
 use std::path::{Path, PathBuf};
 
-use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 
+use crate::error::CliError;
 use crate::timecode::Time;
 
 /// Fade, in seconds, applied at a cut edge that names no fade of its own, so splices never click.
@@ -81,6 +81,13 @@ pub struct Chapter {
 
 impl Plan {
     pub fn load(path: &Path) -> anyhow::Result<Self> {
-        crate::library::read_json(path).with_context(|| format!("loading plan {}", path.display()))
+        if !path.exists() {
+            let missing = CliError::not_found(format!("no plan file {}", path.display()))
+                .detail("path", path.display().to_string())
+                .hint("supercut plans draft <show> <episode ids...>");
+            return Err(missing.into());
+        }
+        crate::library::read_json(path)
+            .map_err(|error| error.context(CliError::invalid(format!("{} is not a cut plan", path.display()))))
     }
 }

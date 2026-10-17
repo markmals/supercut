@@ -1,115 +1,164 @@
-use std::fmt::Write as _;
+mod markdown;
+
+use serde::Serialize;
+
+pub use markdown::markdown;
 
 use crate::commands::Context;
-use crate::plan::timeline::{EpisodeSpan, InputEpisode, Timeline};
-use crate::plan::{Cut, Plan, resolve, timeline};
+use crate::plan::timeline::{self, EpisodeSpan, InputEpisode};
+use crate::plan::{Cut, EDGE_FADE_SECONDS, Plan, resolve};
 use crate::timecode::Time;
 use crate::transcript::Transcript;
 
 /// Words of transcript quoted either side of a cut edge.
 const CONTEXT_WORDS: usize = 12;
+/// Words of show notes a chapter line carries.
+const SUMMARY_WORDS: usize = 16;
 
-/// The plan as prose for the human who decides whether these cuts are right.
-pub fn review(context: &Context, plan: &Plan) -> anyhow::Result<String> {
+/// A plan explained: what each cut removes, what the listener hears around it, and the totals.
+#[derive(Debug, Serialize)]
+pub struct Review {
+    pub title: String,
+    pub show: String,
+    pub episodes: Vec<EpisodeReview>,
+    pub totals: Totals,
+}
+
+#[derive(Debug, Serialize)]
+pub struct EpisodeReview {
+    pub id: String,
+    pub title: String,
+    pub duration: Time,
+    pub kept: Time,
+    pub plays_at: Time,
+    pub cuts: Vec<CutReview>,
+    pub chapters: Vec<ChapterReview>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CutReview {
+    pub index: usize,
+    pub start: Time,
+    pub end: Time,
+    pub length: Time,
+    pub reason: String,
+    pub fade_out: f64,
+    pub fade_in: f64,
+    /// Transcript around the splice, absent until the episode is transcribed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<CutContext>,
+}
+
+/// What is heard before and after the splice, and what goes away between them.
+#[derive(Debug, Serialize)]
+pub struct CutContext {
+    pub before: String,
+    pub cut_starts: String,
+    pub cut_ends: String,
+    pub after: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ChapterReview {
+    pub start: Time,
+    pub end: Time,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Totals {
+    pub episodes: usize,
+    pub cuts: usize,
+    pub removed: Time,
+    pub kept: Time,
+    pub output_duration: Time,
+}
+
+pub fn review(context: &Context, plan: &Plan) -> anyhow::Result<Review> {
     let resolved = resolve::resolve(context, plan)?;
     let timeline = timeline::build(&resolved.input);
 
-    let mut page = String::new();
-    writeln!(page, "# {}\n", plan.title)?;
-    writeln!(
-        page,
-        "{} · {} episodes · {} of audio\n",
-        resolved.show.title,
-        timeline.episodes.len(),
-        Time(timeline.duration())
-    )?;
-
+    let mut episodes = Vec::new();
     for (span, episode) in timeline.episodes.iter().zip(&resolved.input.episodes) {
         let transcript = resolved.transcript(&episode.id)?;
-        write_episode(&mut page, span, episode, transcript.as_ref())?;
+        episodes.push(episode_review(span, episode, transcript.as_ref()));
     }
-    write_totals(&mut page, &timeline, &resolved.input.episodes)?;
-    Ok(page)
+    let source: f64 = resolved.input.episodes.iter().map(|episode| episode.duration).sum();
+    let kept: f64 = timeline.episodes.iter().map(|span| span.kept_seconds).sum();
+    let totals = Totals {
+        episodes: episodes.len(),
+        cuts: episodes.iter().map(|episode| episode.cuts.len()).sum(),
+        removed: Time(source - kept),
+        kept: Time(kept),
+        output_duration: Time(timeline.duration()),
+    };
+    Ok(Review { title: plan.title.clone(), show: resolved.show.title.clone(), episodes, totals })
 }
 
-fn write_episode(
-    page: &mut String,
-    span: &EpisodeSpan,
-    episode: &InputEpisode,
-    transcript: Option<&Transcript>,
-) -> anyhow::Result<()> {
-    writeln!(page, "## {} — {}\n", span.id, span.title)?;
-    writeln!(
-        page,
-        "Kept {} of {} · {} cuts · plays {} to {}\n",
-        Time(span.kept_seconds),
-        Time(episode.duration),
-        span.cuts,
-        Time(span.start),
-        Time(span.end)
-    )?;
-
-    for (index, cut) in episode.cuts.iter().enumerate() {
-        write_cut(page, index, cut, episode.duration, transcript)?;
+fn episode_review(span: &EpisodeSpan, episode: &InputEpisode, transcript: Option<&Transcript>) -> EpisodeReview {
+    let cuts = episode
+        .cuts
+        .iter()
+        .enumerate()
+        .map(|(index, cut)| cut_review(index, cut, episode.duration, transcript))
+        .collect();
+    let chapters = span
+        .chapters
+        .iter()
+        .map(|chapter| ChapterReview {
+            start: Time(chapter.start),
+            end: Time(chapter.end),
+            title: chapter.title.clone(),
+            description: chapter.description.as_deref().map(summarize),
+        })
+        .collect();
+    EpisodeReview {
+        id: span.id.clone(),
+        title: span.title.clone(),
+        duration: Time(episode.duration),
+        kept: Time(span.kept_seconds),
+        plays_at: Time(span.start),
+        cuts,
+        chapters,
     }
-    if span.chapters.is_empty() {
-        return Ok(());
-    }
-    writeln!(page, "### Chapters\n")?;
-    for chapter in &span.chapters {
-        let description = chapter.description.as_deref().map(summarize).unwrap_or_default();
-        writeln!(page, "- {} {} {description}", Time(chapter.start), chapter.title)?;
-    }
-    writeln!(page)?;
-    Ok(())
 }
 
-fn write_cut(
-    page: &mut String,
-    index: usize,
-    cut: &Cut,
-    duration: f64,
-    transcript: Option<&Transcript>,
-) -> anyhow::Result<()> {
-    let end = cut.end.map_or(duration, Time::seconds);
+fn cut_review(index: usize, cut: &Cut, duration: f64, transcript: Option<&Transcript>) -> CutReview {
     let start = cut.start.seconds();
-    writeln!(
-        page,
-        "### Cut {} · {} to {} ({}) · {}\n",
-        index + 1,
-        Time(start),
-        Time(end),
-        Time(end - start),
-        cut.reason
-    )?;
-    writeln!(page, "Fades: out {} s, in {} s\n", fade(cut.fade_out), fade(cut.fade_in))?;
-    let Some(transcript) = transcript else { return Ok(()) };
-    for (label, text) in quotes(transcript, start, end) {
-        writeln!(page, "- {label}: {text}")?;
+    let end = cut.end.map_or(duration, Time::seconds);
+    CutReview {
+        index: index + 1,
+        start: Time(start),
+        end: Time(end),
+        length: Time(end - start),
+        reason: cut.reason.clone(),
+        fade_out: cut.fade_out.unwrap_or(EDGE_FADE_SECONDS),
+        fade_in: cut.fade_in.unwrap_or(EDGE_FADE_SECONDS),
+        context: transcript.map(|transcript| cut_context(transcript, start, end)),
     }
-    writeln!(page)?;
-    Ok(())
 }
 
-/// What the listener hears either side of the splice, and what disappears between.
-fn quotes(transcript: &Transcript, start: f64, end: f64) -> Vec<(&'static str, String)> {
-    let before: Vec<&str> = words_before(transcript, start);
+fn cut_context(transcript: &Transcript, start: f64, end: f64) -> CutContext {
+    let before = words_before(transcript, start);
     let inside: Vec<&str> = transcript.words_between(start, end).map(|word| word.text.as_str()).collect();
     let after: Vec<&str> =
         transcript.words().filter(|word| word.start >= end).take(CONTEXT_WORDS).map(|word| word.text.as_str()).collect();
-
-    let mut quotes = vec![("before", quote(&before, ""))];
-    if inside.len() <= CONTEXT_WORDS * 2 {
-        quotes.push(("cut", quote(&inside, "")));
-    } else {
-        quotes.push(("cut starts", quote(&inside[..CONTEXT_WORDS], " …")));
-        quotes.push(("cut ends", quote(&inside[inside.len() - CONTEXT_WORDS..], "")));
+    let (opening, closing) = match inside.len() > CONTEXT_WORDS * 2 {
+        true => (&inside[..CONTEXT_WORDS], &inside[inside.len() - CONTEXT_WORDS..]),
+        false => (&inside[..], &[][..]),
+    };
+    CutContext {
+        before: before.join(" "),
+        cut_starts: opening.join(" "),
+        cut_ends: closing.join(" "),
+        after: after.join(" "),
     }
-    quotes.push(("after", quote(&after, " …")));
-    quotes
 }
 
-fn words_before<'a>(transcript: &'a Transcript, start: f64) -> Vec<&'a str> {
+/// The last words heard before the splice.
+fn words_before(transcript: &Transcript, start: f64) -> Vec<&str> {
     let mut words: Vec<&str> = Vec::new();
     for word in transcript.words().take_while(|word| word.end <= start) {
         if words.len() == CONTEXT_WORDS {
@@ -120,34 +169,11 @@ fn words_before<'a>(transcript: &'a Transcript, start: f64) -> Vec<&'a str> {
     words
 }
 
-fn quote(words: &[&str], trailing: &str) -> String {
-    if words.is_empty() {
-        return "(silence)".to_string();
-    }
-    format!("“{}{trailing}”", words.join(" "))
-}
-
-fn write_totals(page: &mut String, timeline: &Timeline, episodes: &[InputEpisode]) -> anyhow::Result<()> {
-    let source: f64 = episodes.iter().map(|episode| episode.duration).sum();
-    let kept: f64 = timeline.episodes.iter().map(|span| span.kept_seconds).sum();
-    let cuts: usize = timeline.episodes.iter().map(|span| span.cuts).sum();
-    writeln!(page, "## Totals\n")?;
-    writeln!(page, "- Episodes: {}", episodes.len())?;
-    writeln!(page, "- Cuts: {cuts}, removing {}", Time(source - kept))?;
-    writeln!(page, "- Kept audio: {}", Time(kept))?;
-    writeln!(page, "- Rendered length: {} (with interstitials)", Time(timeline.duration()))?;
-    Ok(())
-}
-
-fn fade(seconds: Option<f64>) -> String {
-    seconds.map_or_else(|| format!("{} (default)", crate::plan::EDGE_FADE_SECONDS), |fade| format!("{fade}"))
-}
-
-/// Show notes are paragraphs; a chapter line wants one sentence of them.
+/// Show notes are paragraphs; a chapter line wants the first sentence of them.
 fn summarize(description: &str) -> String {
-    let mut text: String = description.split_whitespace().take(16).collect::<Vec<_>>().join(" ");
+    let mut text: String = description.split_whitespace().take(SUMMARY_WORDS).collect::<Vec<_>>().join(" ");
     if text.len() < description.len() {
         text.push('…');
     }
-    if text.is_empty() { text } else { format!("— {text}") }
+    text
 }

@@ -29,8 +29,8 @@ pub fn lint(resolved: &Resolved) -> anyhow::Result<Vec<String>> {
             let end = cut.end.map_or(planned.duration, Time::seconds);
             let start = cut.start.seconds();
             let edges = [
-                (format!("{label} starts"), start, cut.fade_out),
-                (format!("{label} ends"), end, cut.fade_in),
+                (format!("{label}: the start"), start, cut.fade_out),
+                (format!("{label}: the end"), end, cut.fade_in),
             ];
             for (label, edge, fade) in edges {
                 warnings.extend(edge_warnings(&label, edge, fade, &envelope, transcript.as_ref()));

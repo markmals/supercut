@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use id3::frame::{Chapter, Content, Picture, PictureType, TableOfContents};
 use id3::{Frame, Tag, TagLike, Version};
 
+use crate::error::CliError;
 use crate::plan::timeline::EpisodeSpan;
 
 /// ID3 says offsets it cannot state are all ones; ours are times, not byte positions.
@@ -98,7 +99,11 @@ fn picture(path: &Path) -> anyhow::Result<Frame> {
     let mime_type = match extension.as_str() {
         "png" => "image/png",
         "jpg" | "jpeg" => "image/jpeg",
-        other => anyhow::bail!("artwork {} is a `{other}` file; use JPEG or PNG", path.display()),
+        other => {
+            let unusable = CliError::invalid(format!("the artwork {} is a `{other}` file", path.display()))
+                .hint("point `artwork` at a JPEG or PNG");
+            return Err(unusable.into());
+        }
     };
     let picture = Picture {
         mime_type: mime_type.to_string(),
@@ -106,7 +111,7 @@ fn picture(path: &Path) -> anyhow::Result<Frame> {
         description: String::new(),
         data,
     };
-    Ok(Content::Picture(picture).into_frame("APIC"))
+    Ok(Frame::with_content("APIC", Content::Picture(picture)))
 }
 
 #[cfg(test)]

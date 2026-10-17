@@ -4,8 +4,10 @@ use std::path::Path;
 use crate::render::format::OutputFormat;
 use crate::render::piece::{BEEP_SECONDS, Piece, Source};
 
-/// Level of the preview marker tone, quiet enough to be a bookmark rather than a shock.
-const BEEP_LEVEL_DB: f64 = -32.0;
+/// Level the preview marker plays at: a bookmark between transitions, not a shock.
+const BEEP_LEVEL_DB: f64 = -30.0;
+/// ffmpeg's `sine` source peaks at an eighth of full scale, whatever the format.
+const SINE_PEAK_DB: f64 = -18.06;
 const BEEP_TONE_HZ: u32 = 660;
 const BEEP_TONE_SECONDS: f64 = 0.15;
 const BEEP_LEAD_MS: u32 = 350;
@@ -16,7 +18,7 @@ const BEEP_LEAD_MS: u32 = 350;
 /// it transcodes, and one input per piece keeps hour-long episodes streaming instead of buffered.
 pub fn encode_args(pieces: &[Piece], format: &OutputFormat, limit_db: f64, output: &Path) -> Vec<OsString> {
     let mut args: Vec<OsString> =
-        ["-nostdin", "-hide_banner", "-v", "warning", "-y"].into_iter().map(OsString::from).collect();
+        ["-nostdin", "-hide_banner", "-v", "error", "-y"].into_iter().map(OsString::from).collect();
     for piece in pieces {
         push_input(&mut args, piece, format);
     }
@@ -92,7 +94,7 @@ fn piece_filters(piece: &Piece, format: &OutputFormat) -> Vec<String> {
 fn beep_filters() -> Vec<String> {
     let tail = BEEP_SECONDS - BEEP_TONE_SECONDS - f64::from(BEEP_LEAD_MS) / 1000.0;
     vec![
-        format!("volume={BEEP_LEVEL_DB}dB"),
+        format!("volume={:.2}dB", BEEP_LEVEL_DB - SINE_PEAK_DB),
         format!("adelay={BEEP_LEAD_MS}:all=1"),
         format!("apad=pad_dur={tail:.3}"),
     ]
