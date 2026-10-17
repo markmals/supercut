@@ -11,12 +11,12 @@ The `supercut` CLI does all audio work; you make the editorial calls from transc
 
 ## Workflow
 
-1. Orient: `supercut shows list`, then `supercut rules get <show>`. The rules record the user's taste (grouping, what to cut, which bonus episodes to include). `supercut history list <show>` and `history get` show how past supercuts were cut.
+1. Orient: `supercut shows list`, then `supercut rules get <show>`. The rules record the user's taste (grouping, what to cut, which bonus episodes to include). `supercut config get` shows each show's interstitial and segment kinds. `supercut history list <show>` and `history get` show how past supercuts were cut.
 2. Choose episodes per the rules; ask the user when the rules say ask. `episodes sync`, `episodes list`, `episodes download`.
 3. `transcripts create` (about 5 minutes per episode hour; run in the background) and `labels create` (paid; `--dry-run` first to see the request count).
 4. `plans draft <show> <ids…> --title … --output …` (add `--also-cut <id>=<label>` for per-episode removals the user asked for).
-5. Check the draft: `labels get <show> <id> --output text` for low-confidence segments, `transcripts get --from --to --output text` to read around them, `episodes inspect --at` for doubtful cut edges. Edit the plan JSON to fix what is wrong.
-6. `plans validate <plan>` must report `ok: true`. When a comparable hand-made supercut exists, `plans compare <plan> <history plan>` shows where the draft disagrees with past choices.
+5. Check every cut, not only the flagged ones: read `plans review <plan> --output text` and confirm each cut's "heard before"/"heard after" lines land where the rules say (e.g. the hosts' "welcome back" must be kept). `plans draft`'s `low_confidence` lists segments it was unsure about, kept or cut. Read around doubtful spots with `transcripts get --from --to --output text`; `episodes inspect --at` gives word timings and levels for placing an edge. Edit the plan JSON to fix what is wrong.
+6. `plans validate <plan>` must report `ok: true`; its warnings point at edges on sounding audio. For a supercut you remade, `plans compare <plan> <history plan>` shows where the draft disagrees with the hand-made one (it compares shared episodes only); for a new one, read `history get` of the previous part instead.
 7. Ask for approval: give the user `plans review <plan> --output text` and the path from `plans preview <plan>`.
 8. After approval: `plans render <plan> --dry-run`, then `plans render <plan>`; add `--sideload` only when asked. Report the receipt (path, duration, chapters).
 
