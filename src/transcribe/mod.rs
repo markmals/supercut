@@ -1,9 +1,10 @@
 //! Speech-to-text engines.
 
+mod faster_whisper;
 mod mlx;
+mod openai_json;
 mod repetition;
 mod view;
-mod whisper_cpp;
 
 use std::path::Path;
 
@@ -17,7 +18,7 @@ pub use view::{Utterance, render, utterances};
 pub fn transcribe_file(config: &TranscriptionConfig, audio: &Path) -> anyhow::Result<Transcript> {
     let mut transcript = match config.engine {
         TranscriptionEngine::MlxWhisper => mlx::transcribe(config, audio)?,
-        TranscriptionEngine::WhisperCpp => whisper_cpp::transcribe(config, audio)?,
+        TranscriptionEngine::FasterWhisper => faster_whisper::transcribe(config, audio)?,
     };
     repetition::strip_loops(&mut transcript);
     Ok(transcript)

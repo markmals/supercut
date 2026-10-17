@@ -15,13 +15,13 @@
   // "sideload_dir": "~/Library/Mobile Documents/iCloud~co~supertop~castro/Documents/Sideloads",
 
   "transcription": {
-    // "mlx-whisper" (Apple silicon only, and the default there) or "whisper-cpp" (any platform,
-    // and the default elsewhere).
-    // "engine": "whisper-cpp",
+    // "mlx-whisper" (Apple silicon only, and the default there) or "faster-whisper" (any
+    // platform's CPU, through the `whisper-ctranslate2` command, and the default elsewhere;
+    // install it with `uv tool install whisper-ctranslate2`).
+    // "engine": "faster-whisper",
     // mlx-whisper: a Hugging Face repo or model folder, mlx-community/whisper-large-v3-turbo
-    // when unset. whisper.cpp: a ggml model file, which it needs; get one with whisper.cpp's
-    // `models/download-ggml-model.sh large-v3-turbo-q8_0`.
-    // "model": "~/models/ggml-large-v3-turbo-q8_0.bin",
+    // when unset. faster-whisper: a Whisper size, large-v3-turbo when unset.
+    // "model": "large-v3-turbo",
     "language": "en",
   },
 

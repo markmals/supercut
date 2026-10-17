@@ -54,19 +54,13 @@ fn path_problems(config: &Config) -> Vec<String> {
     problems
 }
 
-/// An engine this machine cannot run, or a whisper.cpp model file that is missing.
+/// An engine this machine cannot run.
 fn transcription_problems(config: &Config) -> Vec<String> {
-    let transcription = &config.transcription;
-    if transcription.engine == TranscriptionEngine::MlxWhisper && TranscriptionEngine::native() != TranscriptionEngine::MlxWhisper {
-        return vec!["transcription.engine: mlx-whisper runs only on Apple silicon; use \"whisper-cpp\"".into()];
+    let engine = config.transcription.engine;
+    if engine == TranscriptionEngine::MlxWhisper && TranscriptionEngine::native() != TranscriptionEngine::MlxWhisper {
+        return vec!["transcription.engine: mlx-whisper runs only on Apple silicon; use \"faster-whisper\"".into()];
     }
-    if transcription.engine != TranscriptionEngine::WhisperCpp {
-        return Vec::new();
-    }
-    match &transcription.model {
-        None => vec!["transcription.model: whisper.cpp needs a ggml model file, e.g. ggml-large-v3-turbo-q8_0.bin".into()],
-        Some(model) => missing("transcription.model", Some(Path::new(model))).into_iter().collect(),
-    }
+    Vec::new()
 }
 
 fn missing(setting: &str, path: Option<&Path>) -> Option<String> {
@@ -76,16 +70,14 @@ fn missing(setting: &str, path: Option<&Path>) -> Option<String> {
 
 /// Everything supercut shells out to, whether or not this config needs it.
 fn tool_paths(config: &Config) -> BTreeMap<String, Option<PathBuf>> {
-    let mut programs = vec!["ffmpeg".to_owned(), "ffprobe".to_owned(), "mlx_whisper".to_owned(), "whisper-cli".to_owned()];
+    let mut programs: Vec<String> =
+        ["ffmpeg", "ffprobe", "mlx_whisper", "whisper-ctranslate2"].into_iter().map(str::to_owned).collect();
     programs.extend(config.jev.api_key_command.first().cloned());
     programs.into_iter().map(|program| (program.clone(), locate(&program))).collect()
 }
 
 fn tool_problems(config: &Config, tools: &BTreeMap<String, Option<PathBuf>>) -> Vec<String> {
-    let transcriber = match config.transcription.engine {
-        TranscriptionEngine::MlxWhisper => "mlx_whisper",
-        TranscriptionEngine::WhisperCpp => "whisper-cli",
-    };
+    let transcriber = config.transcription.engine.program();
     let mut needed = vec!["ffmpeg", "ffprobe", transcriber];
     needed.extend(config.jev.api_key_command.first().map(String::as_str));
     needed
