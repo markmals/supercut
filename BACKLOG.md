@@ -27,4 +27,3 @@ Agreed order: get The Neighborhood Listen (NHL) right end to end, then publishin
 - `--output` means a format on some commands and a file on others.
 - `plans draft` does not read the show's rules file; the agent applies it.
 - Shows without a `chapters` layout get a chapter per labeled segment, and those go stale after hand edits (a kept low-confidence `classified` keeps its chapter, a hand cut can leave a seconds-long one) and flicker when the labels flip inside a segment. `plans validate` only reports chapters that fall wholly inside a cut; it could also flag chapters a few seconds long.
-- NHL Bonus Room chapter titles keep the "BONUS ROOM #N: " prefix ("Intro: BONUS ROOM #30: Rain of Moonfire"); ask the user whether to drop it.
