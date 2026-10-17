@@ -13,12 +13,14 @@ const MIN_SPAN_SECONDS: f64 = 15.0;
 
 /// Removes looped words from `transcript` and records each loop as an unreliable span.
 pub fn strip_loops(transcript: &mut Transcript) {
-    let words: Vec<Word> = transcript.words().cloned().collect();
-    let loops = find(&words);
+    let (loops, count) = {
+        let words: Vec<&Word> = transcript.words().collect();
+        (find(&words), words.len())
+    };
     if loops.is_empty() {
         return;
     }
-    let mut looped = vec![false; words.len()];
+    let mut looped = vec![false; count];
     for found in &loops {
         looped[found.words.clone()].fill(true);
     }
@@ -43,8 +45,7 @@ struct Loop {
     span: UnreliableSpan,
 }
 
-/// Every loop in `words`, in order and without overlap.
-fn find(words: &[Word]) -> Vec<Loop> {
+fn find(words: &[&Word]) -> Vec<Loop> {
     let keys: Vec<String> = words.iter().map(|word| key(&word.text)).collect();
     let mut found = Vec::new();
     let mut start = 0;
@@ -61,7 +62,7 @@ fn find(words: &[Word]) -> Vec<Loop> {
 }
 
 /// The longest loop starting at `start`, if the words there repeat long and often enough.
-fn loop_at(words: &[Word], keys: &[String], start: usize) -> Option<Loop> {
+fn loop_at(words: &[&Word], keys: &[String], start: usize) -> Option<Loop> {
     (1..=MAX_PHRASE_WORDS)
         .filter_map(|phrase| {
             let repeats = repeats_of(keys, start, phrase);
