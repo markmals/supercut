@@ -27,10 +27,9 @@ fn feed_item(item: &rss::Item, enclosure: &rss::Enclosure) -> anyhow::Result<Fee
         .and_then(published)
         .with_context(|| format!("feed item `{title}`"))?;
     Ok(FeedItem {
-        // Without a guid, the release time and title identify the episode. The enclosure URL
-        // can't: private feeds put rotating tokens in its query string, and a query string can
-        // also be all that tells two episodes apart.
-        guid: guid(item).unwrap_or_else(|| fallback_guid(published, &title)),
+        // Private feeds put rotating tokens in the enclosure's query string, so an item without
+        // a guid is known by its release time, its audio's path and its title instead.
+        guid: guid(item).unwrap_or_else(|| fallback_guid(published, enclosure.url(), &title)),
         description: plain_text(description(item, itunes)),
         published,
         season: number(itunes.and_then(ITunesItemExtension::season), "itunes:season", &title),
@@ -47,9 +46,10 @@ fn feed_item(item: &rss::Item, enclosure: &rss::Enclosure) -> anyhow::Result<Fee
     })
 }
 
-/// The identity of an item that has no guid of its own.
-pub fn fallback_guid(published: Timestamp, title: &str) -> String {
-    format!("{FALLBACK_GUID_PREFIX}{published}:{title}")
+/// The identity of an item that has no guid of its own: never its URL's query string, which may
+/// hold a token. `merge` still recognizes the episode after a title edit or a token change.
+pub fn fallback_guid(published: Timestamp, enclosure_url: &str, title: &str) -> String {
+    format!("{FALLBACK_GUID_PREFIX}{published}:{}:{title}", super::fetch::redacted(enclosure_url))
 }
 
 pub const FALLBACK_GUID_PREFIX: &str = "no-guid:";
@@ -173,10 +173,10 @@ mod tests {
     }
 
     #[test]
-    fn an_item_without_a_guid_is_known_by_its_release_and_title_never_its_url() {
+    fn an_item_without_a_guid_never_takes_its_url_token_into_its_id() {
         let items = parse(FEED).unwrap();
-        assert_eq!(items[1].guid, "no-guid:2024-08-07T14:00:00Z:Bonus Room");
-        assert_eq!(items[2].guid, "no-guid:2024-08-08T14:00:00Z:Trailer");
+        assert_eq!(items[1].guid, "no-guid:2024-08-07T14:00:00Z:https://example.com/audio/bonus.m4a:Bonus Room");
+        assert_eq!(items[2].guid, "no-guid:2024-08-08T14:00:00Z:https://example.com/audio/trailer.mp3:Trailer");
         assert!(items.iter().all(|item| !item.guid.contains("token")), "a private token never becomes an id");
     }
 

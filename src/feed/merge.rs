@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use super::fetch::redacted;
 use super::item::FeedItem;
 use super::parse::FALLBACK_GUID_PREFIX;
 use crate::library::{Episode, EpisodeIndex};
@@ -37,17 +38,28 @@ pub fn merge(index: &mut EpisodeIndex, items: &[FeedItem]) -> MergeReport {
     report
 }
 
-/// The indexed episode this item is. An item without a guid of its own may have been indexed
-/// when its enclosure URL served as its id; it is the same episode if the release time and
-/// title agree, and its refresh moves it to the new id.
+/// The indexed episode this item is: the one with its guid, or, for an item without a guid of
+/// its own, an episode whose id supercut made up (under any scheme it has used) released at the
+/// same time with the same title or the same audio path. Refreshing it moves it to the new id,
+/// so a title edit or a rotated token never duplicates an episode or strands its download.
 fn known<'a>(index: &'a mut EpisodeIndex, item: &FeedItem) -> Option<&'a mut Episode> {
     let position = index.episodes.iter().position(|episode| episode.guid == item.guid).or_else(|| {
         item.guid.starts_with(FALLBACK_GUID_PREFIX).then_some(())?;
         index.episodes.iter().position(|episode| {
-            episode.guid == episode.enclosure_url && episode.published == item.published && episode.title == item.title
+            made_up(episode)
+                && episode.published == item.published
+                && (episode.title == item.title || redacted(&episode.enclosure_url) == redacted(&item.enclosure_url))
         })
     })?;
     index.episodes.get_mut(position)
+}
+
+/// Whether the episode's id came from supercut rather than the publisher: today's fallback, or
+/// the enclosure URL with or without its query string that earlier versions used.
+fn made_up(episode: &Episode) -> bool {
+    episode.guid.starts_with(FALLBACK_GUID_PREFIX)
+        || episode.guid == episode.enclosure_url
+        || episode.guid == redacted(&episode.enclosure_url)
 }
 
 /// Whether the feed had anything new to say about an episode we already know.
@@ -122,38 +134,56 @@ mod tests {
         assert_eq!(index.get("s01e01").unwrap().title, "From the first feed");
     }
 
-    #[test]
-    fn an_episode_indexed_under_its_old_url_id_keeps_its_id_and_audio() {
-        // Indexed when a guid-less item's enclosure URL (token included) was its id.
+    /// A guid-less item as `parse` makes it.
+    fn guidless(title: &str, day: i64, enclosure_url: &str) -> FeedItem {
+        let mut made = item("unused", title, day, None);
+        made.enclosure_url = enclosure_url.into();
+        made.guid = super::super::parse::fallback_guid(made.published, enclosure_url, title);
+        made
+    }
+
+    /// Syncs `first`, marks it downloaded, then syncs `then`: the report and the one episode.
+    fn resync(first: FeedItem, then: FeedItem) -> (MergeReport, EpisodeIndex) {
         let mut index = EpisodeIndex::default();
-        let mut old = item("a", "Bonus", 1, None);
-        old.guid = "https://example.com/bonus.mp3?token=old".into();
-        old.enclosure_url = old.guid.clone();
-        merge(&mut index, &[old]);
+        merge(&mut index, &[first]);
         let id = index.episodes[0].id.clone();
         index.episodes[0].audio_file = Some(format!("{id}.mp3"));
+        let report = merge(&mut index, &[then]);
+        (report, index)
+    }
 
-        let mut now = item("unused", "Bonus", 1, None);
-        now.guid = super::super::parse::fallback_guid(now.published, "Bonus");
-        now.enclosure_url = "https://example.com/bonus.mp3?token=new".into();
-        let report = merge(&mut index, &[now]);
-
+    fn assert_same_episode((report, index): (MergeReport, EpisodeIndex)) {
         assert!(report.added.is_empty(), "{:?}", report.added);
         assert_eq!(index.episodes.len(), 1);
-        assert_eq!(index.episodes[0].id, id);
-        assert_eq!(index.episodes[0].audio_file.as_deref(), Some(format!("{id}.mp3").as_str()));
-        assert!(!index.episodes[0].guid.contains("token"), "the id moves off the tokened URL");
+        let episode = &index.episodes[0];
+        assert_eq!(episode.audio_file.as_deref(), Some(format!("{}.mp3", episode.id).as_str()));
+        assert!(episode.guid.starts_with("no-guid:") && !episode.guid.contains("token"), "{}", episode.guid);
     }
 
     #[test]
-    fn guid_less_items_differing_only_by_query_stay_apart() {
-        let mut first = item("x", "Part 1", 1, None);
-        first.guid = super::super::parse::fallback_guid(first.published, "Part 1");
-        first.enclosure_url = "https://example.com/stream?episode=1".into();
-        let mut second = item("x", "Part 2", 1, None);
-        second.guid = super::super::parse::fallback_guid(second.published, "Part 2");
-        second.enclosure_url = "https://example.com/stream?episode=2".into();
+    fn a_guid_less_episode_survives_a_rotated_token_and_a_retitling() {
+        let original = guidless("Bonus", 1, "https://example.com/bonus.mp3?token=old");
+        assert_same_episode(resync(guidless("Bonus", 1, "https://example.com/bonus.mp3?token=old"), guidless("Bonus", 1, "https://example.com/bonus.mp3?token=new")));
+        assert_same_episode(resync(original, guidless("Bonus (corrected)", 1, "https://example.com/bonus.mp3?token=old")));
+    }
+
+    #[test]
+    fn episodes_indexed_under_earlier_url_ids_carry_over() {
+        for old_id in ["https://example.com/bonus.mp3?token=old", "https://example.com/bonus.mp3"] {
+            let mut old = item("unused", "Bonus", 1, None);
+            old.guid = old_id.into();
+            old.enclosure_url = "https://example.com/bonus.mp3?token=old".into();
+            assert_same_episode(resync(old, guidless("Bonus", 1, "https://example.com/bonus.mp3?token=new")));
+        }
+    }
+
+    #[test]
+    fn distinct_guid_less_items_stay_apart() {
         let mut index = EpisodeIndex::default();
-        assert_eq!(merge(&mut index, &[first, second]).added.len(), 2);
+        let by_query = [guidless("Part 1", 1, "https://example.com/stream?episode=1"), guidless("Part 2", 1, "https://example.com/stream?episode=2")];
+        assert_eq!(merge(&mut index, &by_query).added.len(), 2);
+        let mut index = EpisodeIndex::default();
+        let same_title = [guidless("Bonus", 1, "https://example.com/a.mp3"), guidless("Bonus", 1, "https://example.com/b.mp3")];
+        assert_eq!(merge(&mut index, &same_title).added.len(), 2);
     }
 }
