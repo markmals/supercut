@@ -1,22 +1,30 @@
 mod chapters;
+mod file;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, anyhow};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use chapters::{ChapterScheme, EpisodeName};
+pub use file::{CONFIG_FILE, SCHEMA_FILE, schema};
 
 use crate::error::CliError;
 
 const APP_DIR: &str = "supercut";
 
-/// `config.toml` in the platform config directory (`~/Library/Application Support/supercut` on
-/// macOS, `$XDG_CONFIG_HOME/supercut` on Linux, `%APPDATA%\supercut` on Windows).
-#[derive(Debug, Default, Deserialize, Serialize)]
+/// `supercut.config.jsonc` in the platform config directory (`~/Library/Application
+/// Support/supercut` on macOS, `$XDG_CONFIG_HOME/supercut` on Linux, `%APPDATA%\supercut` on
+/// Windows).
+#[derive(Debug, Default, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    /// The JSON Schema this file follows, for editors: `./supercut.config.schema.json`, which
+    /// `supercut config init` writes and `supercut config schema` prints.
+    #[serde(rename = "$schema", default, skip_serializing_if = "Option::is_none")]
+    pub schema: Option<String>,
     /// Downloaded episodes, transcripts, analysis and plans. Defaults to the platform data directory.
     pub library_dir: Option<PathBuf>,
     /// Where rendered supercuts go, one folder per show.
@@ -33,7 +41,7 @@ pub struct Config {
     pub shows: BTreeMap<String, ShowConfig>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TranscriptionConfig {
     pub engine: TranscriptionEngine,
@@ -52,14 +60,14 @@ impl Default for TranscriptionConfig {
     }
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum TranscriptionEngine {
     MlxWhisper,
     WhisperCpp,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct LoudnessConfig {
     /// Integrated loudness every episode is brought to, in LUFS.
@@ -75,7 +83,7 @@ impl Default for LoudnessConfig {
 }
 
 /// TypeSafe's Jev decision model, which labels transcript windows.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct JevSettings {
     /// The System One endpoint requests are POSTed to.
@@ -101,7 +109,7 @@ impl Default for JevSettings {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ShowConfig {
     pub title: String,
@@ -135,7 +143,7 @@ pub struct ShowConfig {
     pub chapters: Option<ChapterScheme>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SegmentKind {
     /// Short id, e.g. `classified`.
@@ -164,7 +172,7 @@ pub struct SegmentKind {
 }
 
 /// Which side of the pause before the segment the cut starts on.
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum CutStart {
     /// Right after the last word kept before the segment: music leading into it goes too.
@@ -175,7 +183,7 @@ pub enum CutStart {
 }
 
 /// Which side of the pause after the segment the cut ends on.
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum CutEnd {
     /// Just before the next kept word: music trailing out of the segment goes too.
@@ -188,7 +196,7 @@ pub enum CutEnd {
 impl Config {
     pub fn default_path() -> anyhow::Result<PathBuf> {
         let base = dirs::config_dir().ok_or_else(|| anyhow!("no config directory on this platform"))?;
-        Ok(base.join(APP_DIR).join("config.toml"))
+        Ok(base.join(APP_DIR).join(CONFIG_FILE))
     }
 
     /// Reads the config file; a missing file is an empty config so `config init` can run.
@@ -198,9 +206,9 @@ impl Config {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Self::default()),
             Err(error) => return Err(error).with_context(|| format!("reading {}", path.display())),
         };
-        let mut config: Config = toml::from_str(&text).map_err(|error| {
-            CliError::invalid(format!("{} is not a valid config: {error}", path.display()))
-                .hint("`supercut config init --config <scratch>.toml` writes a commented example of every setting")
+        let mut config = file::parse(&text).map_err(|problem| {
+            CliError::invalid(format!("{} is not a valid config: {problem}", path.display()))
+                .hint("`supercut config init --config <scratch>.jsonc` writes a commented example of every setting")
         })?;
         config.expand_home_paths();
         Ok(config)

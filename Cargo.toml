@@ -11,13 +11,15 @@ html-escape = "0.3.0"
 id3 = "1.17.2"
 jev-driver = { version = "0.1", default-features = false }
 jiff = { version = "0.2.38", features = ["serde"] }
+jsonc-parser = { version = "0.34.0", features = ["serde"] }
 regex = "1.13.1"
 rss = { version = "2.1.2", default-features = false }
 rusty-chromaprint = "0.3.0"
+schemars = "1.2.3"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+serde_path_to_error = "0.1.20"
 tempfile = "3.27.0"
 tokio = { version = "1.53.3", default-features = false, features = ["rt-multi-thread", "sync"] }
-toml = "1.1.8"
 ureq = "3.4.2"
 url = "2.5.8"

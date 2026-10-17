@@ -2,6 +2,7 @@
 //! titled from a template filled with pieces of the episode's title and its number.
 
 use regex::Regex;
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 
 /// The placeholder `number` fills; the rest come from `title_pattern`'s groups.
@@ -17,9 +18,10 @@ pub struct ChapterScheme {
     title_pattern: Regex,
 }
 
-/// The scheme as the config file writes it.
-#[derive(Clone, Deserialize, Serialize)]
+/// A show's own chapter layout: one chapter per stretch of an episode between its breaks.
+#[derive(Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[schemars(rename = "ChapterScheme")]
 struct Written {
     /// One title per stretch between breaks, in order; `{name}` stands for the `title_pattern`
     /// group of that name, `{number}` for the episode's number.
@@ -70,6 +72,16 @@ fn fully_named(template: &str, names: &[&str]) -> bool {
 impl From<ChapterScheme> for Written {
     fn from(scheme: ChapterScheme) -> Self {
         Self { parts: scheme.parts, number: scheme.number, title_pattern: scheme.title_pattern.as_str().to_owned() }
+    }
+}
+
+impl JsonSchema for ChapterScheme {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        Written::schema_name()
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        Written::json_schema(generator)
     }
 }
 

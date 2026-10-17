@@ -30,13 +30,11 @@ mod tests {
     use super::*;
 
     fn scheme() -> ChapterScheme {
-        toml::from_str(
-            r#"
-            parts = ["Intro: {title}", "Guest: {guest}", "Outro: {title}"]
-            title_pattern = '^(?P<title>.+) with (?P<guest>.+)$'
-            "#,
-        )
-        .unwrap()
+        let written = r#"{
+            "parts": ["Intro: {title}", "Guest: {guest}", "Outro: {title}"],
+            "title_pattern": "^(?P<title>.+) with (?P<guest>.+)$"
+        }"#;
+        serde_json::from_str(written).unwrap()
     }
 
     fn cut(start: f64, end: Option<f64>) -> Cut {

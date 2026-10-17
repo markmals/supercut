@@ -60,9 +60,16 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "config init",
         effects: &[WritesConfig],
-        output: "{config_file, action}",
+        output: "{config_file, schema_file, action}",
         example: "supercut config init --dry-run",
-        keywords: &["setup", "create config", "starter"],
+        keywords: &["setup", "create config", "starter", "jsonc"],
+    },
+    Operation {
+        path: "config schema",
+        effects: &[ReadOnly],
+        output: "the JSON Schema (draft 2020-12) of supercut.config.jsonc",
+        example: "supercut config schema",
+        keywords: &["json schema", "settings reference", "validate config", "editor"],
     },
     Operation {
         path: "config validate",
