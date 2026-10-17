@@ -50,9 +50,22 @@ pub struct PlanEpisode {
     /// episode itself always gets a chapter carrying its title and show notes.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub chapters: Vec<Chapter>,
+    /// Whether the show's interstitial plays after this episode. `plans draft` sets `false`
+    /// when the episode ends with one of the show's bumpers, which stands in for it.
+    #[serde(default = "plays", skip_serializing_if = "is_played")]
+    pub interstitial_after: bool,
     /// Free-form note for the reviewer; not rendered.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+}
+
+fn plays() -> bool {
+    true
+}
+
+#[expect(clippy::trivially_copy_pass_by_ref, reason = "serde's skip_serializing_if passes a reference")]
+fn is_played(after: &bool) -> bool {
+    *after
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

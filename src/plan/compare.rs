@@ -152,7 +152,7 @@ mod tests {
     }
 
     fn plan(cuts: Vec<Cut>) -> Plan {
-        let episode = PlanEpisode { id: "e".into(), cuts, chapters: Vec::new(), note: None };
+        let episode = PlanEpisode { id: "e".into(), cuts, chapters: Vec::new(), interstitial_after: true, note: None };
         Plan { show: "s".into(), title: "t".into(), output: "o.mp3".into(), interstitial: None, episodes: vec![episode] }
     }
 

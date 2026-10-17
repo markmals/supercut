@@ -29,6 +29,7 @@ fn span(id: &str, start: f64, end: f64, chapters: Vec<SegmentChapter>) -> Episod
         description: format!("{id} notes: {}", "neighbourly chatter ".repeat(10)),
         start,
         end,
+        pieces: 0..0,
         kept_seconds: end - start,
         cuts: 0,
         chapters,

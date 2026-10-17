@@ -53,7 +53,7 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "config get",
         effects: &[ReadOnly],
-        output: "{config_file, exists, library_dir, output_dir, sideload_dir, rules_dir, shows: [{show, title, feeds, artwork, interstitial, themes, segments}], transcription, loudness, jev}",
+        output: "{config_file, exists, library_dir, output_dir, sideload_dir, rules_dir, shows: [{show, title, feeds, artwork, interstitial, themes, bumpers, segments}], transcription, loudness, jev}",
         example: "supercut config get",
         keywords: &["context", "settings", "paths", "where", "library", "interstitial", "artwork", "segments", "show settings"],
     },
@@ -123,9 +123,9 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "episodes analyze",
         effects: &[WritesLibrary],
-        output: "[{id, duration, integrated_lufs, range_lu, bit_rate, sample_rate, channels}]",
+        output: "[{id, duration, integrated_lufs, range_lu, bit_rate, sample_rate, channels, opening: {recording, start, end, score}|null, ending: {recording, start, end, score}|null}]; opening/ending absent when the show has no themes/bumpers",
         example: "supercut episodes analyze the-neighborhood-listen s10e01",
-        keywords: &["loudness", "levels", "measure", "lufs"],
+        keywords: &["loudness", "levels", "measure", "lufs", "theme", "bumper", "jingle", "opening", "ending"],
     },
     Operation {
         path: "episodes inspect",
@@ -201,7 +201,7 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "plans preview",
         effects: &[WritesLibrary],
-        output: "{preview, duration, transitions: [{index, preview_time, episode, kind, cut_start, cut_end, reason}]}",
+        output: "{preview, duration, transitions: [{index, preview_time, kind: opening|cut|episode_boundary|ending, episode, next, cut_start, cut_end, reason}]}; preview_time is where the splice falls in the reel",
         example: "supercut plans preview plan.json",
         keywords: &["listen", "transitions", "audition"],
     },

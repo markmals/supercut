@@ -5,9 +5,9 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
-use crate::analysis::theme::Themes;
+use crate::analysis::jingle::Jingles;
 use crate::analysis::{Envelope, episode_analysis, episode_envelope};
-use crate::labels::opening;
+use crate::labels::{closing, opening};
 use crate::commands::Context;
 use crate::config::{SegmentKind, ShowConfig};
 use crate::error::CliError;
@@ -56,7 +56,7 @@ pub fn draft(
     also_cut: &AlsoCut,
 ) -> anyhow::Result<Draft> {
     let (show, library) = context.show(slug)?;
-    let themes = Themes::load(&show.themes)?;
+    let recordings = Recordings { themes: Jingles::load(&show.themes)?, bumpers: Jingles::load(&show.bumpers)? };
     let mut planned = Vec::with_capacity(episodes.len());
     let mut low_confidence = Vec::new();
     let mut warnings = Vec::new();
@@ -72,8 +72,8 @@ pub fn draft(
         }
         let dropped = Dropped { kinds: &show.segments, episode: &episode.id, also: also_cut };
         low_confidence.extend(uncertain_segments(&labels, &dropped));
-        let drafted = plan_episode(&library, show, &themes, episode, position == 0, &labels, also_cut)?;
-        if !show.themes.is_empty() && !drafted.opened_by_theme {
+        let drafted = plan_episode(&library, show, &recordings, episode, position == 0, &labels, also_cut)?;
+        if !recordings.themes.is_empty() && !drafted.opened_by_theme {
             warnings.push(format!(
                 "{}: none of the show's themes plays in its opening, so its opening cut comes from the labels",
                 episode.id
@@ -93,6 +93,12 @@ pub fn plan_path(library: &ShowLibrary, output: &str, chosen: Option<PathBuf>) -
     })
 }
 
+/// The show's recurring recordings, decoded once for the whole draft.
+struct Recordings {
+    themes: Jingles,
+    bumpers: Jingles,
+}
+
 struct Drafted {
     episode: PlanEpisode,
     opened_by_theme: bool,
@@ -101,7 +107,7 @@ struct Drafted {
 fn plan_episode(
     library: &ShowLibrary,
     show: &ShowConfig,
-    themes: &Themes,
+    recordings: &Recordings,
     episode: &Episode,
     first_in_supercut: bool,
     labels: &Labels,
@@ -110,18 +116,24 @@ fn plan_episode(
     let duration = episode_analysis(library, episode)?.duration;
     let envelope = episode_envelope(library, episode)?;
     let transcript = crate::labels::transcript(library, episode)?;
+    let audio = library.audio_path(episode)?;
     let gaps = refine::gaps(&transcript, duration);
     let spoken = phrases::spoken(&transcript);
     let dropped = Dropped { kinds: &show.segments, episode: &episode.id, also: also_cut };
     let mut cuts = cuts(labels, &dropped, &gaps, &spoken, &envelope);
-    let theme = themes.find_in(&library.audio_path(episode)?)?;
+    let theme = recordings.themes.opening_of(&audio)?;
     if let Some(theme) = &theme {
         let end = opening::opening_end(theme, first_in_supercut, &envelope);
         cuts = opening::with_opening(cuts, theme, end);
     }
-    let cuts = tidy(cuts, duration);
+    let mut cuts = tidy(cuts, duration);
+    let bumper = recordings.bumpers.ending_of(&audio, duration)?;
+    if let Some(bumper) = &bumper {
+        cuts = closing::keeping_bumper(cuts, bumper);
+    }
     let chapters = chapters(labels, &dropped, &cuts);
-    let episode = PlanEpisode { id: episode.id.clone(), cuts, chapters, note: None };
+    let id = episode.id.clone();
+    let episode = PlanEpisode { id, cuts, chapters, interstitial_after: bumper.is_none(), note: None };
     Ok(Drafted { episode, opened_by_theme: theme.is_some() })
 }
 

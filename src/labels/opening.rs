@@ -3,7 +3,7 @@
 //! after the interstitial, unless dead air follows the theme.
 
 use crate::analysis::Envelope;
-use crate::analysis::theme::ThemeMatch;
+use crate::analysis::jingle::JingleMatch;
 use crate::plan::Cut;
 use crate::timecode::Time;
 
@@ -20,7 +20,7 @@ const USUAL_PAUSE_SECONDS: f64 = 0.45;
 const LONGEST_PAUSE_SECONDS: f64 = 1.0;
 
 /// Where the opening cut ends.
-pub fn opening_end(theme: &ThemeMatch, first_in_supercut: bool, envelope: &Envelope) -> f64 {
+pub fn opening_end(theme: &JingleMatch, first_in_supercut: bool, envelope: &Envelope) -> f64 {
     let Some(talk) = envelope.first_above(theme.end, theme.end + SPEECH_WITHIN_SECONDS, SPEECH_DB) else {
         return theme.end;
     };
@@ -32,8 +32,8 @@ pub fn opening_end(theme: &ThemeMatch, first_in_supercut: bool, envelope: &Envel
 
 /// `cuts` led by the opening cut. Cuts that began inside the theme give way to it: they are the
 /// labels' reading of the introduction, and the theme says exactly where it ends.
-pub fn with_opening(cuts: Vec<Cut>, theme: &ThemeMatch, end: f64) -> Vec<Cut> {
-    let name = theme.theme.file_stem().unwrap_or_default().to_string_lossy();
+pub fn with_opening(cuts: Vec<Cut>, theme: &JingleMatch, end: f64) -> Vec<Cut> {
+    let name = theme.recording.file_stem().unwrap_or_default().to_string_lossy();
     let opening = Cut {
         start: Time(0.0),
         end: Some(Time(end)),
@@ -49,8 +49,8 @@ mod tests {
     use super::*;
     use crate::analysis::FRAME_SECONDS;
 
-    fn theme(end: f64) -> ThemeMatch {
-        ThemeMatch { theme: "/themes/show.flac".into(), start: end - 27.0, end, score: 0.99 }
+    fn theme(end: f64) -> JingleMatch {
+        JingleMatch { recording: "/themes/show.flac".into(), start: end - 27.0, end, score: 0.99 }
     }
 
     /// Theme music to 43.8 s, `pause` seconds of near-silence, then the hosts talking.

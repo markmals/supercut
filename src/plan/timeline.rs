@@ -26,6 +26,7 @@ pub struct InputEpisode {
     pub integrated_lufs: f64,
     pub cuts: Vec<Cut>,
     pub chapters: Vec<Chapter>,
+    pub interstitial_after: bool,
 }
 
 pub struct Clip {
@@ -51,6 +52,8 @@ pub struct EpisodeSpan {
     pub description: String,
     pub start: f64,
     pub end: f64,
+    /// The episode's own audio among the timeline's pieces; the interstitial is not in it.
+    pub pieces: std::ops::Range<usize>,
     pub kept_seconds: f64,
     pub cuts: usize,
     pub chapters: Vec<SegmentChapter>,
@@ -70,15 +73,18 @@ impl Timeline {
     }
 }
 
+/// The plan's audio in order: each episode's kept audio, then the interstitial unless the
+/// episode closes with a bumper of its own. The last episode is no exception: a supercut ends
+/// on the interstitial as the hand-made ones did.
 pub fn build(input: &Input) -> Timeline {
     let mut timeline = Timeline::default();
-    for (index, episode) in input.episodes.iter().enumerate() {
-        if index > 0
+    for episode in &input.episodes {
+        push_episode(&mut timeline, episode, input.target_lufs);
+        if episode.interstitial_after
             && let Some(clip) = &input.interstitial
         {
             push_interstitial(&mut timeline, clip, input.target_lufs);
         }
-        push_episode(&mut timeline, episode, input.target_lufs);
     }
     close_spans(&mut timeline);
     timeline
@@ -110,6 +116,7 @@ fn push_episode(timeline: &mut Timeline, episode: &InputEpisode, target_lufs: f6
         description: episode.description.clone(),
         start,
         end: start,
+        pieces: first..timeline.pieces.len(),
         kept_seconds,
         cuts: episode.cuts.len(),
         chapters,

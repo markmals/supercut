@@ -136,7 +136,8 @@ fn is_sting(pieces: &[Piece], index: usize) -> bool {
     reused || isolated
 }
 
-/// The plan that reproduces the export: episodes in export order, cuts = everything not kept.
+/// The plan that reproduces the export: episodes in export order, cuts = everything not kept,
+/// and an interstitial after an episode only where the export played one.
 pub fn recovered_plan(show: &str, recovery: &Recovery, durations: &BTreeMap<String, f64>) -> Plan {
     let mut order: Vec<&str> = Vec::new();
     for piece in &recovery.pieces {
@@ -150,7 +151,13 @@ pub fn recovered_plan(show: &str, recovery: &Recovery, durations: &BTreeMap<Stri
             let mut kept: Vec<&Piece> = recovery.pieces.iter().filter(|piece| piece.episode == id).collect();
             kept.sort_by(|a, b| a.source_start.total_cmp(&b.source_start));
             let duration = durations.get(id).copied().unwrap_or(f64::INFINITY);
-            PlanEpisode { id: id.to_owned(), cuts: cuts_between(&kept, duration, &recovery.name), chapters: Vec::new(), note: None }
+            PlanEpisode {
+                id: id.to_owned(),
+                cuts: cuts_between(&kept, duration, &recovery.name),
+                chapters: Vec::new(),
+                interstitial_after: interstitial_follows(recovery, id),
+                note: None,
+            }
         })
         .collect();
     Plan {
@@ -160,6 +167,18 @@ pub fn recovered_plan(show: &str, recovery: &Recovery, durations: &BTreeMap<Stri
         interstitial: Some(InterstitialSetting::Enabled(!recovery.interstitials.is_empty())),
         episodes,
     }
+}
+
+/// Whether an interstitial plays between the episode's last audio and whatever comes next.
+fn interstitial_follows(recovery: &Recovery, id: &str) -> bool {
+    let ends = recovery.pieces.iter().filter(|piece| piece.episode == id).map(|piece| piece.export_end).fold(0.0, f64::max);
+    let next = recovery
+        .pieces
+        .iter()
+        .filter(|piece| piece.episode != id && piece.export_start >= ends)
+        .map(|piece| piece.export_start)
+        .fold(f64::INFINITY, f64::min);
+    recovery.interstitials.iter().any(|clip| clip.export_end > ends && clip.export_start < next)
 }
 
 fn cuts_between(kept: &[&Piece], duration: f64, name: &str) -> Vec<Cut> {

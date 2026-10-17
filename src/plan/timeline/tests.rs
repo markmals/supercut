@@ -21,6 +21,7 @@ fn episode(id: &str, duration: f64, cuts: Vec<Cut>, chapters: Vec<Chapter>) -> I
         integrated_lufs: -18.0,
         cuts,
         chapters,
+        interstitial_after: true,
     }
 }
 
@@ -82,10 +83,11 @@ fn a_cut_without_an_end_runs_to_the_end_of_the_episode() {
 }
 
 #[test]
-fn the_interstitial_plays_between_episodes_only() {
-    let clip = Clip { audio: "/audio/bumper.mp3".into(), duration: 10.0, integrated_lufs: -20.0 };
+fn the_interstitial_follows_every_episode_but_one_that_closes_with_its_own_bumper() {
+    let clip = Clip { audio: "/audio/sting.mp3".into(), duration: 10.0, integrated_lufs: -20.0 };
+    let bonus = InputEpisode { interstitial_after: false, ..episode("bonus", 30.0, vec![], vec![]) };
     let timeline = build(&input(
-        vec![episode("a", 100.0, vec![], vec![]), episode("b", 50.0, vec![], vec![])],
+        vec![episode("a", 100.0, vec![], vec![]), bonus, episode("b", 50.0, vec![], vec![])],
         Some(clip),
     ));
 
@@ -93,24 +95,26 @@ fn the_interstitial_plays_between_episodes_only() {
         ranges(&timeline),
         vec![
             ("a.mp3".into(), 0.0, 100.0, 0.0),
-            ("bumper.mp3".into(), 0.0, 10.0, 100.0),
-            ("b.mp3".into(), 0.0, 50.0, 110.0),
+            ("sting.mp3".into(), 0.0, 10.0, 100.0),
+            ("bonus.mp3".into(), 0.0, 30.0, 110.0),
+            ("b.mp3".into(), 0.0, 50.0, 140.0),
+            ("sting.mp3".into(), 0.0, 10.0, 190.0),
         ]
     );
     assert_eq!(timeline.pieces[1].gain_db, 4.0);
-    assert_eq!(timeline.duration(), 160.0);
+    assert_eq!(timeline.duration(), 200.0);
 }
 
 #[test]
 fn an_episode_span_ends_at_the_next_episode_so_it_owns_the_interstitial() {
-    let clip = Clip { audio: "/audio/bumper.mp3".into(), duration: 10.0, integrated_lufs: -16.0 };
+    let clip = Clip { audio: "/audio/sting.mp3".into(), duration: 10.0, integrated_lufs: -16.0 };
     let timeline = build(&input(
         vec![episode("a", 100.0, vec![], vec![]), episode("b", 50.0, vec![], vec![])],
         Some(clip),
     ));
 
     assert_eq!((timeline.episodes[0].start, timeline.episodes[0].end), (0.0, 110.0));
-    assert_eq!((timeline.episodes[1].start, timeline.episodes[1].end), (110.0, 160.0));
+    assert_eq!((timeline.episodes[1].start, timeline.episodes[1].end), (110.0, 170.0));
 }
 
 #[test]

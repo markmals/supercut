@@ -2,6 +2,7 @@
 //! cut plan drafted from them.
 
 mod also_cut;
+mod closing;
 mod draft;
 mod fine;
 mod jev;

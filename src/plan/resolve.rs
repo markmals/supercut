@@ -54,6 +54,7 @@ pub fn resolve<'a>(context: &'a AppContext, plan: &Plan) -> anyhow::Result<Resol
             integrated_lufs: analysis.loudness.integrated_lufs,
             cuts: planned.cuts.clone(),
             chapters: planned.chapters.clone(),
+            interstitial_after: planned.interstitial_after,
         });
         probes.push(analysis.probe);
         episodes.push(episode.clone());
