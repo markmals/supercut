@@ -12,6 +12,9 @@ use crate::render::piece::{Piece, Source};
 use crate::render::{encode, graph};
 use crate::timecode::Time;
 
+/// Less context than this is not long enough to judge a splice by.
+const MINIMUM_CONTEXT_SECONDS: f64 = 1.0;
+
 /// Audio shorter than this is not worth a transition of its own.
 const MINIMUM_PIECE_SECONDS: f64 = 0.05;
 
@@ -50,6 +53,13 @@ pub struct Request<'a> {
 }
 
 pub fn preview(context: &Context, request: Request) -> anyhow::Result<Preview> {
+    if request.context < MINIMUM_CONTEXT_SECONDS {
+        let short = CliError::invalid(format!(
+            "--context of {} s is too short to judge a splice by; give at least {MINIMUM_CONTEXT_SECONDS} s",
+            request.context
+        ));
+        return Err(short.into());
+    }
     let resolved = resolve::resolve(context, request.plan)?;
     let mut reel = Reel::default();
     reel.fill(&resolved.input, request.context);
