@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 
 use crate::commands::Context;
-use crate::config::{Config, LoudnessConfig, SegmentKind, ShowConfig, TranscriptionConfig};
+use crate::config::{ChapterScheme, Config, LoudnessConfig, SegmentKind, ShowConfig, TranscriptionConfig};
 use crate::output::print_json;
 
 /// Show the effective configuration and where supercut keeps its files, secrets redacted.
@@ -56,6 +56,8 @@ struct Show<'a> {
     bumpers: &'a [std::path::PathBuf],
     /// The segments `labels create` sorts episodes into; `cut` ones `plans draft` removes.
     segments: &'a [SegmentKind],
+    /// The show's own chapter layout; null means a chapter per labeled segment.
+    chapters: Option<&'a ChapterScheme>,
 }
 
 fn show<'a>(slug: &'a str, settings: &'a ShowConfig) -> Show<'a> {
@@ -69,6 +71,7 @@ fn show<'a>(slug: &'a str, settings: &'a ShowConfig) -> Show<'a> {
         outros: &settings.outros,
         bumpers: &settings.bumpers,
         segments: &settings.segments,
+        chapters: settings.chapters.as_ref(),
     }
 }
 

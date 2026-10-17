@@ -5,6 +5,7 @@ mod also_cut;
 mod closing;
 mod draft;
 mod fine;
+mod parts;
 mod jev;
 mod opening;
 mod phrases;

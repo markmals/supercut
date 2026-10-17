@@ -1,8 +1,12 @@
+mod chapters;
+
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, anyhow};
 use serde::{Deserialize, Serialize};
+
+pub use chapters::ChapterScheme;
 
 use crate::error::CliError;
 
@@ -125,6 +129,10 @@ pub struct ShowConfig {
     /// these; `draft` turns them into cuts and chapters.
     #[serde(default)]
     pub segments: Vec<SegmentKind>,
+    /// The show's own chapter layout. Without it, `plans draft` makes a chapter per labeled
+    /// segment.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chapters: Option<ChapterScheme>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

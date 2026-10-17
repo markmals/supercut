@@ -83,3 +83,12 @@ cut_end = "before-next-speech"
 # cut's edges more precisely than the labels can.
 after_phrases = ["we'll be right back"]
 before_phrases = ["welcome back"]
+
+# Optional: the show's own chapter layout. Each episode gets one chapter per stretch between its
+# breaks (the cuts with audio kept on both sides), titled in order from `parts`; `{name}` stands
+# for the `title_pattern` group of that name, matched against the episode's title. An episode
+# with a different number of breaks, or a title the pattern does not match, gets one chapter
+# named after it. Without this table, `plans draft` makes a chapter per labeled segment.
+[shows.example-show.chapters]
+parts = ["Intro: {title}", "Guest: {guest}", "Outro: {title}"]
+title_pattern = '^(?P<title>.+) with (?P<guest>.+)$'

@@ -37,9 +37,9 @@ pub fn write(path: &Path, tags: &Tags) -> anyhow::Result<usize> {
 
 /// Every chapter in one ordered, top-level table of contents, and no other table: Castro reads
 /// only the first table it meets, so a table per episode showed just the first episode's
-/// chapters. Each episode keeps its place through its chapters' titles and its first chapter's
-/// show notes. The chapter frames come before the table because ffmpeg stops collecting chapters
-/// at the first table of contents it meets. Returns how many chapters were written.
+/// chapters. Titles are the plan's, which name their episode; an episode's first chapter carries
+/// its show notes. The chapter frames come before the table because ffmpeg stops collecting
+/// chapters at the first table of contents it meets. Returns how many chapters were written.
 fn add_chapters(tag: &mut Tag, episodes: &[EpisodeSpan]) -> usize {
     let mut chapters = Vec::new();
     let mut entries = Vec::new();
@@ -52,8 +52,7 @@ fn add_chapters(tag: &mut Tag, episodes: &[EpisodeSpan]) -> usize {
         }
         for (position, segment) in span.chapters.iter().enumerate() {
             let child = format!("{id}c{:02}", position + 1);
-            let title = segment_title(span, &segment.title);
-            chapters.push(chapter(&child, segment.start, segment.end, &title, segment.description.as_deref()));
+            chapters.push(chapter(&child, segment.start, segment.end, &segment.title, segment.description.as_deref()));
             entries.push(child);
         }
     }
@@ -63,16 +62,6 @@ fn add_chapters(tag: &mut Tag, episodes: &[EpisodeSpan]) -> usize {
     }
     tag.add_frame(contents("toc", entries));
     written
-}
-
-/// Chapter readers show no hierarchy, so every chapter names its episode, after its segment:
-/// Castro's chapter list cuts a title off at about 35 characters, which left an episode's
-/// chapters all reading the same when the episode title came first.
-fn segment_title(span: &EpisodeSpan, title: &str) -> String {
-    match title == span.title {
-        true => span.title.clone(),
-        false => format!("{title}: {}", span.title),
-    }
 }
 
 fn chapter(id: &str, start: f64, end: f64, title: &str, description: Option<&str>) -> Frame {

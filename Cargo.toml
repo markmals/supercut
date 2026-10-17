@@ -11,6 +11,7 @@ html-escape = "0.3.0"
 id3 = "1.17.2"
 jev-driver = { version = "0.1", default-features = false }
 jiff = { version = "0.2.38", features = ["serde"] }
+regex = "1.13.1"
 rss = { version = "2.1.2", default-features = false }
 rusty-chromaprint = "0.3.0"
 serde = { version = "1.0.229", features = ["derive"] }

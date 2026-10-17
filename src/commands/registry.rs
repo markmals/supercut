@@ -53,7 +53,7 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "config get",
         effects: &[ReadOnly],
-        output: "{config_file, exists, library_dir, output_dir, sideload_dir, rules_dir, shows: [{show, title, feeds, artwork, interstitial, themes, outros, bumpers, segments}], transcription, loudness, jev}",
+        output: "{config_file, exists, library_dir, output_dir, sideload_dir, rules_dir, shows: [{show, title, feeds, artwork, interstitial, themes, outros, bumpers, segments, chapters: {parts, title_pattern}|null}], transcription, loudness, jev}",
         example: "supercut config get",
         keywords: &["context", "settings", "paths", "where", "library", "interstitial", "artwork", "segments", "show settings"],
     },
@@ -172,7 +172,7 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "plans draft",
         effects: &[WritesLibrary],
-        output: "{plan, episodes, cuts, low_confidence: [{episode, label, start, end, probability, action}]}",
+        output: "{plan, episodes, cuts, low_confidence: [{episode, label, start, end, probability, action}], warnings: [...]}; a warning names an opening, ending or chapter layout to place by hand",
         example: "supercut plans draft the-neighborhood-listen s10e01 s10e02 --title \"NHL S10 pt 1\" --output nhl-s10-pt-1.mp3",
         keywords: &["create plan", "cut list", "edit decision list", "propose cuts", "remove ads", "skip segments"],
     },

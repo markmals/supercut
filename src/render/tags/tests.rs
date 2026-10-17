@@ -69,8 +69,8 @@ fn chapters_round_trip_through_the_file() {
     assert_eq!(
         chapters,
         vec![
-            ("ep01c01", 0, 30_000, Some("Intro: a title")),
-            ("ep01c02", 30_000, 60_000, Some("Guest: a title")),
+            ("ep01c01", 0, 30_000, Some("Intro")),
+            ("ep01c02", 30_000, 60_000, Some("Guest")),
             ("ep02", 60_000, 90_000, Some("b title")),
         ]
     );

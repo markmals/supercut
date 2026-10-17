@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use crate::analysis::jingle::Jingles;
 use crate::analysis::{Envelope, episode_analysis, episode_envelope};
-use crate::labels::{closing, opening};
+use crate::labels::{closing, opening, parts};
 use crate::commands::Context;
 use crate::config::{SegmentKind, ShowConfig};
 use crate::error::CliError;
@@ -106,9 +106,12 @@ struct Drafted {
     opened_by_theme: bool,
     /// An outro or a bumper ends the episode.
     closed_by_recording: bool,
+    /// Why the show's chapter layout does not fit the episode, which then gets one chapter.
+    unfit_layout: Option<String>,
 }
 
-/// What the agent must place by hand: an opening or an ending no recording marks.
+/// What the agent must place by hand: an opening or an ending no recording marks, and chapters
+/// the show's layout could not lay out.
 fn unplaced(recordings: &Recordings, drafted: &Drafted, id: &str) -> Vec<String> {
     let mut warnings = Vec::new();
     if !recordings.themes.is_empty() && !drafted.opened_by_theme {
@@ -116,6 +119,9 @@ fn unplaced(recordings: &Recordings, drafted: &Drafted, id: &str) -> Vec<String>
     }
     if !recordings.outros.is_empty() && !drafted.closed_by_recording {
         warnings.push(format!("{id}: none of the show's outros or bumpers ends it, so its credits cut comes from the labels"));
+    }
+    if let Some(why) = &drafted.unfit_layout {
+        warnings.push(format!("{id}: one chapter named after the episode, because {why}"));
     }
     warnings
 }
@@ -146,15 +152,21 @@ fn plan_episode(
     if let Some(outro) = &outro {
         cuts = closing::with_outro(cuts, outro);
     }
-    let mut cuts = tidy(cuts, duration);
+    let cuts = tidy(cuts, duration);
+    let laid_out = show.chapters.as_ref().map(|scheme| parts::chapters(scheme, &episode.title, &cuts));
     let bumper = recordings.bumpers.ending_of(&audio, duration)?;
-    if let Some(bumper) = &bumper {
-        cuts = closing::keeping_bumper(cuts, bumper);
-    }
-    let chapters = chapters(labels, &dropped, &cuts);
-    let id = episode.id.clone();
-    let episode = PlanEpisode { id, cuts, chapters, interstitial_after: bumper.is_none(), note: None };
-    Ok(Drafted { episode, opened_by_theme: theme.is_some(), closed_by_recording: outro.is_some() || bumper.is_some() })
+    let cuts = match &bumper {
+        Some(bumper) => closing::keeping_bumper(cuts, bumper),
+        None => cuts,
+    };
+    let (chapters, unfit_layout) = match laid_out {
+        Some(Ok(chapters)) => (chapters, None),
+        Some(Err(why)) => (Vec::new(), Some(why)),
+        None => (chapters(labels, &dropped, &cuts, &episode.title), None),
+    };
+    let closed_by_recording = outro.is_some() || bumper.is_some();
+    let episode = PlanEpisode { id: episode.id.clone(), cuts, chapters, interstitial_after: bumper.is_none(), note: None };
+    Ok(Drafted { episode, opened_by_theme: theme.is_some(), closed_by_recording, unfit_layout })
 }
 
 /// Which labels this episode loses, and how each one's edges are placed.
@@ -265,8 +277,9 @@ fn join(previous: &mut Cut, next: Cut) {
 }
 
 /// One chapter per kept segment, neighbours with the same title merged, no chapter inside a cut,
-/// and a segment that starts just after a break starting at the break.
-fn chapters(labels: &Labels, dropped: &Dropped<'_>, cuts: &[Cut]) -> Vec<Chapter> {
+/// and a segment that starts just after a break starting at the break. Chapter readers show no
+/// hierarchy, so each title names its episode after its segment ("Guest: <episode>").
+fn chapters(labels: &Labels, dropped: &Dropped<'_>, cuts: &[Cut], episode_title: &str) -> Vec<Chapter> {
     let mut chapters: Vec<Chapter> = Vec::new();
     for segment in labels.segments.iter().filter(|segment| !dropped.cut(segment)) {
         let Some(title) = dropped.title(&segment.label) else {
@@ -280,7 +293,11 @@ fn chapters(labels: &Labels, dropped: &Dropped<'_>, cuts: &[Cut]) -> Vec<Chapter
         };
         chapters.push(Chapter { start: Time(start), title: title.to_owned(), description: None });
     }
-    starting_at_breaks(chapters, cuts)
+    let mut chapters = starting_at_breaks(chapters, cuts);
+    for chapter in &mut chapters {
+        chapter.title = format!("{}: {episode_title}", chapter.title);
+    }
+    chapters
 }
 
 /// A break is where a show changes segment: when the segment before a cut carries on past it
