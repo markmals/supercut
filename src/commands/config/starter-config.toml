@@ -87,11 +87,12 @@ before_phrases = ["welcome back"]
 # Optional: the show's own chapter layout. Each episode gets one chapter per stretch between its
 # breaks (the cuts with audio kept on both sides), titled in order from `parts`. In a part,
 # `{name}` stands for the `title_pattern` group of that name, matched against the episode's
-# title, and `{number}` for the `number` template filled with the feed's season and episode
-# numbers (each at least two digits; empty for an episode the feed does not number). An episode
-# with a different number of breaks, or a title the pattern does not match, gets one chapter
-# named after it. Without this table, `plans draft` makes a chapter per labeled segment.
+# title, and `{number}` for the first `number` template the episode can fill, from the feed's
+# `{season}` and `{episode}` numbers (each at least two digits) and the pattern's groups; empty
+# when none fills. An episode with a different number of breaks, or a title the pattern does not
+# match, gets one chapter named after it. Without this table, `plans draft` makes a chapter per
+# labeled segment.
 [shows.example-show.chapters]
 parts = ["Intro: {number}{title}", "Guest: {number}{guest}", "Outro: {number}{title}"]
-number = "S{season}E{episode} - "
-title_pattern = '^(?P<title>.+) with (?P<guest>.+)$'
+number = ["S{season}E{episode} - ", "Bonus #{bonus} - "]
+title_pattern = '^(?:BONUS #(?P<bonus>\d+): )?(?P<title>.+) with (?P<guest>.+)$'
