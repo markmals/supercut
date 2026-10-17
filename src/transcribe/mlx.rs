@@ -16,12 +16,13 @@ const ENGINE: &str = "mlx-whisper";
 const OUTPUT_NAME: &str = "transcript";
 
 pub fn transcribe(config: &TranscriptionConfig, audio: &Path) -> anyhow::Result<Transcript> {
+    let model = config.model()?;
     let scratch = tempfile::tempdir().context("making a scratch folder for mlx_whisper")?;
     media::run(
         "mlx_whisper",
         [
             OsStr::new("--model"),
-            OsStr::new(&config.model),
+            OsStr::new(model),
             OsStr::new("--language"),
             OsStr::new(&config.language),
             OsStr::new("--word-timestamps"),
@@ -84,7 +85,7 @@ pub fn parse(json: &str, config: &TranscriptionConfig) -> anyhow::Result<Transcr
         .collect();
     Ok(Transcript {
         engine: ENGINE.to_owned(),
-        model: config.model.clone(),
+        model: config.model()?.to_owned(),
         language: config.language.clone(),
         unreliable: Vec::new(),
         segments,
@@ -130,7 +131,7 @@ mod tests {
     fn config() -> TranscriptionConfig {
         TranscriptionConfig {
             engine: TranscriptionEngine::MlxWhisper,
-            model: "mlx-community/whisper-large-v3-turbo".into(),
+            model: Some("mlx-community/whisper-large-v3-turbo".into()),
             language: "en".into(),
         }
     }

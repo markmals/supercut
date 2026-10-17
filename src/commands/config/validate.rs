@@ -32,6 +32,7 @@ pub fn run(context: &Context, _args: Args) -> anyhow::Result<()> {
         problems.push(format!("no config file at {}; `supercut config init` writes one", context.config_path.display()));
     }
     problems.extend(path_problems(config));
+    problems.extend(transcription_problems(config));
     problems.extend(tool_problems(config, &tools));
     print_json(&Report { ok: problems.is_empty(), problems, tools })
 }
@@ -51,6 +52,21 @@ fn path_problems(config: &Config) -> Vec<String> {
         }
     }
     problems
+}
+
+/// An engine this machine cannot run, or a whisper.cpp model file that is missing.
+fn transcription_problems(config: &Config) -> Vec<String> {
+    let transcription = &config.transcription;
+    if transcription.engine == TranscriptionEngine::MlxWhisper && TranscriptionEngine::native() != TranscriptionEngine::MlxWhisper {
+        return vec!["transcription.engine: mlx-whisper runs only on Apple silicon; use \"whisper-cpp\"".into()];
+    }
+    if transcription.engine != TranscriptionEngine::WhisperCpp {
+        return Vec::new();
+    }
+    match &transcription.model {
+        None => vec!["transcription.model: whisper.cpp needs a ggml model file, e.g. ggml-large-v3-turbo-q8_0.bin".into()],
+        Some(model) => missing("transcription.model", Some(Path::new(model))).into_iter().collect(),
+    }
 }
 
 fn missing(setting: &str, path: Option<&Path>) -> Option<String> {
@@ -81,7 +97,20 @@ fn tool_problems(config: &Config, tools: &BTreeMap<String, Option<PathBuf>>) -> 
 
 fn locate(program: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
-    std::env::split_paths(&path).map(|folder| folder.join(program)).find(|candidate| executable(candidate))
+    std::env::split_paths(&path).flat_map(|folder| candidates(&folder, program)).find(|candidate| executable(candidate))
+}
+
+#[cfg(unix)]
+fn candidates(folder: &Path, program: &str) -> Vec<PathBuf> {
+    vec![folder.join(program)]
+}
+
+/// Windows finds `ffmpeg` as `ffmpeg.exe`: a program is named without the extensions PATHEXT lists.
+#[cfg(not(unix))]
+fn candidates(folder: &Path, program: &str) -> Vec<PathBuf> {
+    let extensions = std::env::var("PATHEXT").unwrap_or_else(|_| ".EXE;.CMD;.BAT".into());
+    let named = extensions.split(';').filter(|extension| !extension.is_empty());
+    std::iter::once(folder.join(program)).chain(named.map(|extension| folder.join(format!("{program}{extension}")))).collect()
 }
 
 #[cfg(unix)]

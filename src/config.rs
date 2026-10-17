@@ -1,5 +1,6 @@
 mod chapters;
 mod file;
+mod transcription;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -10,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 pub use chapters::{ChapterScheme, EpisodeName};
 pub use file::{CONFIG_FILE, SCHEMA_FILE, schema};
+pub use transcription::{TranscriptionConfig, TranscriptionEngine};
 
 use crate::error::CliError;
 
@@ -39,32 +41,6 @@ pub struct Config {
     pub jev: JevSettings,
     #[serde(default)]
     pub shows: BTreeMap<String, ShowConfig>,
-}
-
-#[derive(Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct TranscriptionConfig {
-    pub engine: TranscriptionEngine,
-    /// mlx-whisper: a Hugging Face repo or model directory. whisper.cpp: a ggml model file.
-    pub model: String,
-    pub language: String,
-}
-
-impl Default for TranscriptionConfig {
-    fn default() -> Self {
-        Self {
-            engine: TranscriptionEngine::MlxWhisper,
-            model: "mlx-community/whisper-large-v3-turbo".into(),
-            language: "en".into(),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
-pub enum TranscriptionEngine {
-    MlxWhisper,
-    WhisperCpp,
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
@@ -241,6 +217,9 @@ impl Config {
     fn expand_home_paths(&mut self) {
         for path in [&mut self.library_dir, &mut self.output_dir, &mut self.sideload_dir] {
             expand_home(path);
+        }
+        if let Some(model) = self.transcription.model.as_mut().filter(|model| model.starts_with('~')) {
+            *model = home_expanded(Path::new(model)).to_string_lossy().into_owned();
         }
         for show in self.shows.values_mut() {
             expand_home(&mut show.artwork);

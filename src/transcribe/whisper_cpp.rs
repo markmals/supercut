@@ -17,14 +17,20 @@ const ENGINE: &str = "whisper-cpp";
 const OUTPUT_NAME: &str = "transcript";
 
 pub fn transcribe(config: &TranscriptionConfig, audio: &Path) -> anyhow::Result<Transcript> {
+    let model = config.model()?;
     let scratch = tempfile::tempdir().context("making a scratch folder for whisper-cli")?;
     let output_base = scratch.path().join(OUTPUT_NAME);
-    let alignment = alignment_preset(&config.model)?;
+    let alignment = alignment_preset(model)?;
+    // whisper-cli runs on four threads unless told otherwise; on a 16-core i9 every core takes it
+    // from 2.8x to 3.2x realtime.
+    let threads = std::thread::available_parallelism().map_or(4, usize::from).to_string();
     media::run(
         "whisper-cli",
         [
             OsStr::new("-m"),
-            OsStr::new(&config.model),
+            OsStr::new(model),
+            OsStr::new("-t"),
+            OsStr::new(&threads),
             OsStr::new("-l"),
             OsStr::new(&config.language),
             // Carrying context between windows is what sends Whisper into minutes-long loops.
@@ -81,7 +87,7 @@ pub fn parse(json: &str, config: &TranscriptionConfig) -> anyhow::Result<Transcr
     }
     Ok(Transcript {
         engine: ENGINE.to_owned(),
-        model: config.model.clone(),
+        model: config.model()?.to_owned(),
         language: config.language.clone(),
         unreliable: Vec::new(),
         segments,
@@ -129,7 +135,7 @@ mod tests {
     pub(super) fn config() -> TranscriptionConfig {
         TranscriptionConfig {
             engine: TranscriptionEngine::WhisperCpp,
-            model: "/tmp/ggml-base.en.bin".into(),
+            model: Some("/tmp/ggml-base.en.bin".into()),
             language: "en".into(),
         }
     }
