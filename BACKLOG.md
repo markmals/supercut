@@ -26,3 +26,4 @@ Agreed order: get The Neighborhood Listen (NHL) right end to end, then publishin
 - Confirm the true-peak ceiling holds after MP3 encoding (the limiter runs before the encoder).
 - `--output` means a format on some commands and a file on others.
 - `plans draft` does not read the show's rules file; the agent applies it.
+- After hand edits, `plans draft`'s chapters go stale: a kept low-confidence `classified` keeps a "Classified" chapter, and a hand cut can leave a seconds-long "Plug" chapter. `plans validate` only reports chapters that fall wholly inside a cut; it could also flag chapters a few seconds long.
