@@ -57,7 +57,8 @@ pub fn transcribe(config: &TranscriptionConfig, audio: &Path) -> anyhow::Result<
 }
 
 /// The model size `-dtw` wants, read off the model file name: `ggml-base.en-q5_0.bin` is
-/// `base.en`.
+/// `base.en`, `ggml-large-v3-turbo-q5_0.bin` is `large.v3.turbo` (whisper-cli spells the large
+/// models' versions with dots, their files with dashes).
 fn alignment_preset(model: &str) -> anyhow::Result<String> {
     let stem = Path::new(model)
         .file_stem()
@@ -68,7 +69,7 @@ fn alignment_preset(model: &str) -> anyhow::Result<String> {
         Some((size, _quantization)) => size,
         None => name,
     };
-    Ok(size.to_owned())
+    Ok(size.replace('-', "."))
 }
 
 /// Turns whisper.cpp's full JSON into the shared transcript.
@@ -121,7 +122,8 @@ mod tests {
     #[test]
     fn reads_the_model_size_off_the_file_name() {
         assert_eq!(super::alignment_preset("/tmp/ggml-base.en.bin").unwrap(), "base.en");
-        assert_eq!(super::alignment_preset("~/models/ggml-large-v3-turbo-q5_0.bin").unwrap(), "large-v3-turbo");
+        assert_eq!(super::alignment_preset("~/models/ggml-large-v3-turbo-q5_0.bin").unwrap(), "large.v3.turbo");
+        assert_eq!(super::alignment_preset("~/models/ggml-large-v2.bin").unwrap(), "large.v2");
     }
 
     pub(super) fn config() -> TranscriptionConfig {
