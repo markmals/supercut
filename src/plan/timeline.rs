@@ -6,6 +6,8 @@ use crate::timecode::Time;
 
 /// Times closer together than this are the same moment.
 const EPSILON: f64 = 0.001;
+/// A lead-in shorter than this joins the episode's first chapter instead of getting its own.
+const LEAD_IN_MERGE_SECONDS: f64 = 30.0;
 
 /// A plan with the audio facts a timeline needs already measured.
 pub struct Input {
@@ -172,11 +174,15 @@ fn map_chapters(episode: &InputEpisode, pieces: &[Piece], warnings: &mut Vec<Str
     mapped
 }
 
-/// Audio before the first chapter still needs a chapter; it carries the episode's own title.
+/// Audio before the first chapter still needs a chapter. A short lead-in (a sting, room tone)
+/// joins the first chapter; a long one gets its own, titled after the episode. Either way the
+/// episode's first chapter carries its show notes, for players that read chapters flat.
 fn lead_in(episode: &InputEpisode, pieces: &[Piece], mapped: &mut Vec<SegmentChapter>) {
-    let Some(first) = mapped.first() else { return };
     let start = pieces[0].output_start;
-    if first.start <= start + EPSILON {
+    let Some(first) = mapped.first_mut() else { return };
+    if first.start - start <= LEAD_IN_MERGE_SECONDS {
+        first.start = start;
+        first.description.get_or_insert_with(|| episode.description.clone());
         return;
     }
     let description = Some(episode.description.clone());

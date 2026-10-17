@@ -145,10 +145,20 @@ fn a_chapter_with_no_audio_left_after_it_is_dropped_with_a_warning() {
 }
 
 #[test]
-fn audio_before_the_first_chapter_is_labelled_with_the_episode() {
-    let timeline = build(&input(vec![episode("a", 100.0, vec![], vec![chapter(30.0, "Guest")])], None));
+fn a_long_lead_in_is_labelled_with_the_episode() {
+    let timeline = build(&input(vec![episode("a", 100.0, vec![], vec![chapter(45.0, "Guest")])], None));
 
     let spans: Vec<(f64, f64, &str)> =
         timeline.episodes[0].chapters.iter().map(|c| (c.start, c.end, c.title.as_str())).collect();
-    assert_eq!(spans, vec![(0.0, 30.0, "a title"), (30.0, 100.0, "Guest")]);
+    assert_eq!(spans, vec![(0.0, 45.0, "a title"), (45.0, 100.0, "Guest")]);
+}
+
+#[test]
+fn a_short_lead_in_joins_the_first_chapter_which_carries_the_show_notes() {
+    let timeline = build(&input(vec![episode("a", 100.0, vec![], vec![chapter(10.0, "Guest")])], None));
+
+    let chapters = &timeline.episodes[0].chapters;
+    let spans: Vec<(f64, f64, &str)> = chapters.iter().map(|c| (c.start, c.end, c.title.as_str())).collect();
+    assert_eq!(spans, vec![(0.0, 100.0, "Guest")]);
+    assert!(chapters[0].description.is_some(), "the episode's first chapter carries its description");
 }
