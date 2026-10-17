@@ -24,6 +24,8 @@ use crate::timecode::Time;
 const CUT_GAP_SECONDS: f64 = 2.0;
 /// However short the units around a cut edge are, the pause it moves to may be this far away.
 const LEAST_SEARCH_SECONDS: f64 = 10.0;
+/// Furthest after a break a segment change still belongs at the break.
+const BREAK_REACH_SECONDS: f64 = 300.0;
 
 /// A drafted plan and what the agent should check before rendering it.
 pub struct Draft {
@@ -262,8 +264,8 @@ fn join(previous: &mut Cut, next: Cut) {
     previous.fade_in = next.fade_in;
 }
 
-/// One chapter per kept segment, neighbours with the same title merged, and no chapter inside a
-/// cut.
+/// One chapter per kept segment, neighbours with the same title merged, no chapter inside a cut,
+/// and a segment that starts just after a break starting at the break.
 fn chapters(labels: &Labels, dropped: &Dropped<'_>, cuts: &[Cut]) -> Vec<Chapter> {
     let mut chapters: Vec<Chapter> = Vec::new();
     for segment in labels.segments.iter().filter(|segment| !dropped.cut(segment)) {
@@ -277,6 +279,22 @@ fn chapters(labels: &Labels, dropped: &Dropped<'_>, cuts: &[Cut]) -> Vec<Chapter
             continue;
         };
         chapters.push(Chapter { start: Time(start), title: title.to_owned(), description: None });
+    }
+    starting_at_breaks(chapters, cuts)
+}
+
+/// A break is where a show changes segment: when the segment before a cut carries on past it
+/// and the next one begins within a few minutes, that next one starts where the break ends. The
+/// hosts' "welcome back" chat before they bring in a guest belongs to the guest segment (NHL:
+/// 0 to 201 s of it after the first break, 0 to 11 s after the second).
+fn starting_at_breaks(mut chapters: Vec<Chapter>, cuts: &[Cut]) -> Vec<Chapter> {
+    for cut in cuts {
+        let Some(resumes) = cut.end.map(Time::seconds) else { continue };
+        let Some(next) = chapters.iter().position(|chapter| chapter.start.seconds() > resumes) else { continue };
+        let carries_on = next > 0 && chapters[next - 1].start.seconds() < cut.start.seconds();
+        if carries_on && chapters[next].start.seconds() - resumes <= BREAK_REACH_SECONDS {
+            chapters[next].start = Time(resumes);
+        }
     }
     chapters
 }
@@ -331,7 +349,8 @@ fn uncertain_segments<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::tidy;
+    use super::{starting_at_breaks, tidy};
+    use crate::plan::Chapter;
     use crate::plan::Cut;
     use crate::timecode::Time;
 
@@ -365,5 +384,16 @@ mod tests {
         let tidied = tidy(vec![cut(100.0, 598.5, "credits")], 600.0);
         assert_eq!(tidied[0].end, None, "no end means to the end of the episode");
         assert_eq!(tidied[0].fade_in, None, "nothing resumes, so nothing fades in");
+    }
+
+    #[test]
+    fn a_segment_that_begins_just_after_a_break_starts_at_the_break() {
+        let chapter = |start: f64, title: &str| Chapter { start: Time(start), title: title.into(), description: None };
+        // Hosts until a break at 1569-1604 s; they chat for 201 s before the guest arrives. The
+        // second break ends where the hosts' wrap-up begins; their plug comes 14 minutes later.
+        let chapters = vec![chapter(57.0, "Hosts"), chapter(1805.0, "Guest"), chapter(4689.0, "Hosts"), chapter(5541.0, "Plug")];
+        let cuts = [cut(0.0, 57.0, "opening"), cut(1569.0, 1604.0, "ad"), cut(4588.0, 4689.0, "ad")];
+        let starts: Vec<f64> = starting_at_breaks(chapters, &cuts).iter().map(|chapter| chapter.start.seconds()).collect();
+        assert_eq!(starts, [57.0, 1604.0, 4689.0, 5541.0]);
     }
 }
