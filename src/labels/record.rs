@@ -19,7 +19,12 @@ pub struct Labels {
     /// The segments the show was configured with when these labels were made. Labels whose kinds
     /// differ from the config are stale.
     pub kinds: Vec<LabeledKind>,
-    pub windows: Vec<LabeledWindow>,
+    /// Every ~30 s window of the coarse pass, with what Jev answered about it.
+    pub windows: Vec<LabeledUnit>,
+    /// The sequence the segments were smoothed from: utterances where the fine pass ran,
+    /// windows elsewhere.
+    #[serde(default)]
+    pub units: Vec<LabeledUnit>,
     pub segments: Vec<LabeledSegment>,
 }
 
@@ -34,11 +39,11 @@ pub struct LabeledKind {
     pub cut: bool,
 }
 
-/// What Jev answered about one window.
+/// What Jev answered about one unit, coarse or fine.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct LabeledWindow {
-    /// Start of the window's first word.
+pub struct LabeledUnit {
+    /// Start of the unit's first word.
     pub start: Time,
     /// End of its last word.
     pub end: Time,
@@ -47,16 +52,22 @@ pub struct LabeledWindow {
     pub probabilities: BTreeMap<String, f64>,
 }
 
-/// A run of windows that smoothed into one segment of the episode.
+impl LabeledUnit {
+    pub fn seconds(&self) -> f64 {
+        self.end.seconds() - self.start.seconds()
+    }
+}
+
+/// A run of units that smoothed into one segment of the episode.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct LabeledSegment {
     pub label: String,
     pub start: Time,
     pub end: Time,
-    /// Mean probability of this label across the segment's windows.
+    /// Mean probability of this label across the segment's units.
     pub probability: f64,
-    /// The least confident window in the segment.
+    /// The least confident unit in the segment.
     pub min_confidence: f64,
 }
 
@@ -68,10 +79,11 @@ impl Labels {
     pub fn save(&self, path: &Path) -> anyhow::Result<()> {
         crate::library::write_json_atomically(path, self)
     }
-
-    /// Were these labels made with the show's current segments?
+    /// Were these labels made with the show's current segments, by a labeler that ran the fine
+    /// pass? Labels without fine units predate it and are stale.
     pub fn matches(&self, kinds: &[SegmentKind]) -> bool {
-        self.kinds.len() == kinds.len()
+        !self.units.is_empty()
+            && self.kinds.len() == kinds.len()
             && self.kinds.iter().zip(kinds).all(|(stored, current)| *stored == kind_of(current))
     }
 }
