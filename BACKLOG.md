@@ -27,3 +27,4 @@ Agreed order: get The Neighborhood Listen (NHL) right end to end, then publishin
 - `--output` means a format on some commands and a file on others.
 - `plans draft` does not read the show's rules file; the agent applies it.
 - After hand edits, `plans draft`'s chapters go stale: a kept low-confidence `classified` keeps a "Classified" chapter, and a hand cut can leave a seconds-long "Plug" chapter. `plans validate` only reports chapters that fall wholly inside a cut; it could also flag chapters a few seconds long.
+- Labels flip briefly inside a segment (S09E08 55:35–56:55: the hosts riff mid-guest and the labels call it Burt & Joan), which makes short chapters in the middle of the Guest segment. Waiting on the user: absorb short chapters that sit between two of the same segment?
