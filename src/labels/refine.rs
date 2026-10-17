@@ -4,12 +4,16 @@
 use crate::analysis::Envelope;
 use crate::config::{CutEnd, CutStart};
 use crate::labels::QUIET_DB;
+use crate::plan::EDGE_FADE_SECONDS;
 use crate::transcript::Transcript;
 
 /// Shortest pause a cut edge can land in.
 const MIN_GAP_SECONDS: f64 = 0.6;
 /// Audio left either side of the cut, so no word loses its tail.
 const PADDING_SECONDS: f64 = 0.1;
+/// Transcripts end words early: a voice can still be trailing off this long after its last
+/// word's end (0.3 s in the NHL goodbyes before the closing music).
+const VOICE_TAIL_SECONDS: f64 = 0.5;
 /// How far from the speech edge a cut that keeps the music may hide, looking for the quietest
 /// moment rather than clipping a sting mid-note.
 const QUIETEST_WITHIN_SECONDS: f64 = 1.5;
@@ -21,6 +25,8 @@ const PROXIMITY_WEIGHT: f64 = 0.1;
 const MUSIC_WEIGHT: f64 = 2.0;
 /// Fade for an edge that lands on audio still playing.
 const LOUD_EDGE_FADE_SECONDS: f64 = 0.25;
+/// Sound this much louder than the audio at an edge is a voice or a note a fade must not touch.
+const LOUDER_DB: f32 = 10.0;
 /// A pause starts where the word before it ends; this absorbs overlapping word timings.
 const ANCHOR_TOLERANCE_SECONDS: f64 = 0.05;
 /// Furthest the pause that finishes an anchor phrase's sentence may be from the phrase.
@@ -120,9 +126,9 @@ pub fn refine(bounds: (f64, f64), policy: Policy, anchors: Anchors, search: Sear
         }
     };
     if start >= end {
-        return edges(bounds.0, bounds.1, envelope);
+        return edges(bounds.0, bounds.1, gaps, envelope);
     }
-    edges(start, end, envelope)
+    edges(start, end, gaps, envelope)
 }
 
 /// The first pause once a phrase has been said, within reach of it.
@@ -142,7 +148,11 @@ fn last_pause_before(gaps: &[Gap], phrase_start: f64) -> Option<&Gap> {
 
 fn cut_start(gap: Gap, policy: CutStart, envelope: &Envelope) -> f64 {
     match policy {
-        CutStart::AfterPreviousSpeech => (gap.start + PADDING_SECONDS).min(gap.end),
+        CutStart::AfterPreviousSpeech => {
+            let earliest = (gap.start + PADDING_SECONDS).min(gap.end);
+            let latest = (earliest + VOICE_TAIL_SECONDS).min(gap.end - PADDING_SECONDS).max(earliest);
+            quietest(envelope, earliest, latest)
+        }
         CutStart::BeforeOwnSpeech => {
             let latest = (gap.end - PADDING_SECONDS).max(gap.start);
             quietest(envelope, (latest - QUIETEST_WITHIN_SECONDS).max(gap.start), latest)
@@ -170,13 +180,30 @@ fn quietest(envelope: &Envelope, from: f64, to: f64) -> f64 {
     Envelope::time_of(frame)
 }
 
-fn edges(start: f64, end: f64, envelope: &Envelope) -> Edges {
-    Edges { start, end, fade_out: fade(start, envelope), fade_in: fade(end, envelope) }
+/// The edges with their fades. A fade's room ends at the nearest word, or nearer, at the nearest
+/// sound clearly louder than the edge: transcripts end words before the voice stops.
+fn edges(start: f64, end: f64, gaps: &[Gap], envelope: &Envelope) -> Edges {
+    let louder = |time: f64| envelope.level_at(time) + LOUDER_DB;
+    let room_before = gap_around(gaps, start).map(|gap| {
+        let voice_ends = envelope.last_above(gap.start, start, louder(start)).unwrap_or(gap.start);
+        start - voice_ends.max(gap.start)
+    });
+    let room_after = gap_around(gaps, end).map(|gap| {
+        let voice_starts = envelope.first_above(end, gap.end, louder(end)).unwrap_or(gap.end);
+        voice_starts.min(gap.end) - end
+    });
+    Edges { start, end, fade_out: fade(start, room_before, envelope), fade_in: fade(end, room_after, envelope) }
 }
 
-/// Audio that is still playing at an edge needs a fade; a silent edge splices cleanly.
-fn fade(time: f64, envelope: &Envelope) -> Option<f64> {
-    (envelope.level_at(time) > QUIET_DB).then_some(LOUD_EDGE_FADE_SECONDS)
+fn gap_around(gaps: &[Gap], time: f64) -> Option<&Gap> {
+    gaps.iter().find(|gap| gap.start <= time && time <= gap.end)
+}
+
+/// Audio that is still playing at an edge needs a fade, one no longer than the `room` before
+/// the nearest voice so it never fades one; a silent edge splices cleanly.
+fn fade(time: f64, room: Option<f64>, envelope: &Envelope) -> Option<f64> {
+    let seconds = room.map_or(LOUD_EDGE_FADE_SECONDS, |room| room.clamp(EDGE_FADE_SECONDS, LOUD_EDGE_FADE_SECONDS));
+    (envelope.level_at(time) > QUIET_DB).then_some(seconds)
 }
 
 /// The pause near `boundary` inside `search` most likely to fence the segment: long, carrying
@@ -296,12 +323,27 @@ mod tests {
     }
 
     #[test]
-    fn a_cut_edge_on_music_fades() {
+    fn a_cut_edge_on_music_fades_but_never_into_a_word() {
         let (transcript, envelope) = ad_episode();
         let gaps = gaps(&transcript, 260.0);
         let edges = refine((97.0, 163.0), Policy::default(), Anchors::default(), around_the_ad(), &gaps, &envelope);
         assert_eq!(edges.fade_out, None, "the ad is preceded by room tone");
-        assert_eq!(edges.fade_in, Some(0.25), "the hosts come back while the sting still plays");
+        // The sting plays up to the hosts' first word at 160 s; the cut ends 0.1 s before it.
+        let fade_in = edges.fade_in.unwrap();
+        assert!((fade_in - 0.1).abs() < 1e-6, "fades in over {fade_in} s, into the hosts' first word");
+    }
+
+    #[test]
+    fn a_cut_after_the_last_word_waits_for_the_voice_to_die_away() {
+        // The transcript ends the hosts' "bye" at 99.9 s, but the voice trails on to 100.25 s;
+        // the closing music hits at 100.3 s.
+        let transcript = transcript(&[(0.0, 100.0), (110.0, 160.0)]);
+        let envelope = envelope(160.0, &[(99.5, 100.25), (100.3, 101.0)]);
+        let gaps = gaps(&transcript, 160.0);
+        let search = Search { around_start: (95.0, 105.0), around_end: (105.0, 115.0) };
+        let edges = refine((99.0, 112.0), Policy::default(), Anchors::default(), search, &gaps, &envelope);
+        assert!((edges.start - 100.25).abs() < 0.011, "cut starts at {}", edges.start);
+        assert_eq!(edges.fade_out, None, "the edge is in the hush before the music, so nothing fades");
     }
 
     #[test]
@@ -323,7 +365,8 @@ mod tests {
         let edges = refine((97.0, 163.0), policy, Anchors::default(), around_the_ad(), &gaps, &envelope);
         assert!((edges.end - 158.6).abs() < 0.02, "cut ends at {}", edges.end);
         assert_eq!(edges.fade_in, None, "the sting has finished by then");
-        assert_eq!(edges.fade_out, Some(0.25), "the lead-in sting is cut mid-note");
+        let fade_out = edges.fade_out.unwrap();
+        assert!((fade_out - 0.1).abs() < 1e-6, "the lead-in sting is cut mid-note, faded back to the last word only: {fade_out}");
     }
 
     #[test]
