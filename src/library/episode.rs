@@ -1,6 +1,7 @@
-use anyhow::{anyhow, bail};
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
+
+use crate::error::CliError;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Episode {
@@ -43,17 +44,11 @@ pub struct EpisodeIndex {
 
 impl EpisodeIndex {
     pub fn get(&self, id: &str) -> anyhow::Result<&Episode> {
-        self.episodes
-            .iter()
-            .find(|episode| episode.id == id)
-            .ok_or_else(|| anyhow!("no episode `{id}`; `supercut episodes <show>` lists them"))
+        self.episodes.iter().find(|episode| episode.id == id).ok_or_else(|| unknown_episode(id))
     }
 
     pub fn get_mut(&mut self, id: &str) -> anyhow::Result<&mut Episode> {
-        self.episodes
-            .iter_mut()
-            .find(|episode| episode.id == id)
-            .ok_or_else(|| anyhow!("no episode `{id}`; `supercut episodes <show>` lists them"))
+        self.episodes.iter_mut().find(|episode| episode.id == id).ok_or_else(|| unknown_episode(id))
     }
 
     pub fn by_guid(&self, guid: &str) -> Option<&Episode> {
@@ -70,14 +65,14 @@ impl EpisodeIndex {
             let chosen: Vec<&Episode> =
                 self.episodes.iter().filter(|episode| episode.season == Some(season)).collect();
             if chosen.is_empty() {
-                bail!("no episodes in season {season}");
+                return Err(CliError::not_found(format!("no episodes in season {season}")).into());
             }
             return Ok(chosen);
         }
         if all {
             return Ok(self.episodes.iter().collect());
         }
-        bail!("choose episodes: give ids, `--season N` or `--all`")
+        Err(CliError::invalid("choose episodes: give ids, `--season N` or `--all`").into())
     }
 
     /// An id for a new episode that no existing episode uses.
@@ -99,6 +94,10 @@ impl EpisodeIndex {
         }
         candidate
     }
+}
+
+fn unknown_episode(id: &str) -> anyhow::Error {
+    CliError::not_found(format!("no episode `{id}`")).hint("supercut episodes list <show>").into()
 }
 
 /// The first `limit` alphanumeric words of `text`, lowercased and joined by hyphens.
