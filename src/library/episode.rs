@@ -51,10 +51,6 @@ impl EpisodeIndex {
         self.episodes.iter_mut().find(|episode| episode.id == id).ok_or_else(|| unknown_episode(id))
     }
 
-    pub fn by_guid(&self, guid: &str) -> Option<&Episode> {
-        self.episodes.iter().find(|episode| episode.guid == guid)
-    }
-
     /// Episodes chosen on the command line: explicit ids in the given order, or a whole season
     /// (bonus episodes the feed files under that season included), or everything.
     pub fn select(&self, ids: &[String], season: Option<u32>, all: bool) -> anyhow::Result<Vec<&Episode>> {

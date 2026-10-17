@@ -70,8 +70,8 @@ impl PcmStream {
             filled += count;
         }
         let count = filled / 4;
-        for (sample, chunk) in samples.iter_mut().zip(self.bytes[..count * 4].chunks_exact(4)) {
-            *sample = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        for (sample, chunk) in samples.iter_mut().zip(self.bytes[..count * 4].as_chunks::<4>().0) {
+            *sample = f32::from_le_bytes(*chunk);
         }
         Ok(count)
     }

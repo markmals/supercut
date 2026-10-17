@@ -86,7 +86,9 @@ fn non_speech(envelope: &Envelope, transcript: &Transcript, words: &[TimedWord],
     }
     edges.push(to);
     edges
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .filter(|pair| pair[1] - pair[0] >= MIN_NON_SPEECH_SECONDS)
         .map(|pair| {
             let mean_db = round_db(envelope.mean_db(pair[0], pair[1]));

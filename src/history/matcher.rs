@@ -92,7 +92,7 @@ fn candidate_offsets(source: &[u32], export: &[u32]) -> Vec<isize> {
         .filter(|&i| votes[i] >= MIN_VOTES && is_local_peak(&votes, i))
         .map(|i| (votes[i], i))
         .collect();
-    peaks.sort_by(|a, b| b.0.cmp(&a.0));
+    peaks.sort_by_key(|&(votes, _)| std::cmp::Reverse(votes));
     peaks.into_iter().take(MAX_CANDIDATES).map(|(_, i)| i as isize - shift as isize).collect()
 }
 

@@ -48,7 +48,7 @@ fn coarse_lag(export: &[f32], source: &[f32], max_lag: usize) -> Option<usize> {
 }
 
 fn envelope(samples: &[f32]) -> Vec<f32> {
-    samples.chunks_exact(FRAME).map(rms).collect()
+    samples.as_chunks::<FRAME>().0.iter().map(|frame| rms(frame)).collect()
 }
 
 fn rms(samples: &[f32]) -> f32 {
@@ -72,8 +72,10 @@ fn correlation(a: &[f32], b: &[f32]) -> f32 {
 /// Frame-by-frame comparison of two already aligned, equally long recordings.
 pub fn compare_frames(export: &[f32], source: &[f32]) -> Vec<FrameMatch> {
     export
-        .chunks_exact(FRAME)
-        .zip(source.chunks_exact(FRAME))
+        .as_chunks::<FRAME>()
+        .0
+        .iter()
+        .zip(source.as_chunks::<FRAME>().0)
         .map(|(x, y)| {
             let (level_x, level_y) = (rms(x), rms(y));
             if level_x < SILENT_RMS && level_y < SILENT_RMS {

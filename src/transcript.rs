@@ -54,9 +54,4 @@ impl Transcript {
     pub fn unreliable_between(&self, start: f64, end: f64) -> impl Iterator<Item = &UnreliableSpan> {
         self.unreliable.iter().filter(move |span| span.end > start && span.start < end)
     }
-
-    /// The text spoken in `[start, end)`, joined with spaces.
-    pub fn text_between(&self, start: f64, end: f64) -> String {
-        self.words_between(start, end).map(|word| word.text.as_str()).collect::<Vec<_>>().join(" ")
-    }
 }

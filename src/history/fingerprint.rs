@@ -21,7 +21,7 @@ pub fn item_seconds() -> f64 {
 pub fn cached(audio: &Path, cache: &Path) -> anyhow::Result<Vec<u32>> {
     if cache.exists() {
         let bytes = std::fs::read(cache).with_context(|| format!("reading {}", cache.display()))?;
-        return Ok(bytes.chunks_exact(4).map(|chunk| u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]])).collect());
+        return Ok(bytes.as_chunks::<4>().0.iter().map(|chunk| u32::from_le_bytes(*chunk)).collect());
     }
     eprintln!("fingerprinting {}", audio.display());
     let fingerprint = compute(audio)?;
