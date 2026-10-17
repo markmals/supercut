@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use crate::commands::{Context, Selection};
 use crate::error::CliError;
-use crate::labels::{self, Uncertain};
+use crate::labels::{self, AlsoCut, Uncertain};
 use crate::library::write_json_atomically;
 use crate::output::print_json;
 
@@ -29,6 +29,10 @@ pub struct Args {
     /// File name of the rendered supercut, e.g. `nhl-s10-pt-1.mp3`.
     #[arg(long)]
     output: String,
+
+    /// Also cut every segment with this label from this episode, e.g. `s10e04=guest`. Repeatable.
+    #[arg(long = "also-cut", value_name = "EPISODE=LABEL")]
+    also_cut: Vec<String>,
 
     /// Write the plan here instead of `<library>/<show>/plans/<output stem>.json`.
     #[arg(long)]
@@ -60,7 +64,9 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
             .hint("pass --force to overwrite it, or --plan to write elsewhere")
             .into());
     }
-    let draft = labels::draft(context, &args.show, &episodes, args.title, args.output)?;
+    let show = context.config.show(&args.show)?;
+    let also_cut = AlsoCut::parse(&args.also_cut, &episodes, &show.segments)?;
+    let draft = labels::draft(context, &args.show, &episodes, args.title, args.output, &also_cut)?;
     write_json_atomically(&path, &draft.plan)?;
     print_json(&Receipt {
         plan: path.display().to_string(),

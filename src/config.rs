@@ -126,6 +126,34 @@ pub struct SegmentKind {
     /// `draft` cuts this segment from every episode.
     #[serde(default)]
     pub cut: bool,
+    /// Where a cut of this segment begins.
+    #[serde(default)]
+    pub cut_start: CutStart,
+    /// Where it ends.
+    #[serde(default)]
+    pub cut_end: CutEnd,
+}
+
+/// Which side of the pause before the segment the cut starts on.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum CutStart {
+    /// Right after the last word kept before the segment: music leading into it goes too.
+    #[default]
+    AfterPreviousSpeech,
+    /// Just before the segment's own first word: the music leading into it stays.
+    BeforeOwnSpeech,
+}
+
+/// Which side of the pause after the segment the cut ends on.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum CutEnd {
+    /// Just before the next kept word: music trailing out of the segment goes too.
+    #[default]
+    BeforeNextSpeech,
+    /// Right after the segment's own last word: the music trailing out of it stays.
+    AfterOwnSpeech,
 }
 
 impl Config {
