@@ -24,7 +24,9 @@ fn span(id: &str, start: f64, end: f64, chapters: Vec<SegmentChapter>) -> Episod
     EpisodeSpan {
         id: id.into(),
         title: format!("{id} title"),
-        description: format!("{id} notes"),
+        // Show notes are long; players that read nested frame lengths as 32-bit integers drop
+        // chapters whose notes reach 128 bytes unless the tag is written as ID3v2.3.
+        description: format!("{id} notes: {}", "neighbourly chatter ".repeat(10)),
         start,
         end,
         kept_seconds: end - start,
@@ -43,7 +45,8 @@ fn chapters_round_trip_through_the_file() {
         span("a", 0.0, 60.0, vec![chapter(0.0, 30.0, "Intro"), chapter(30.0, 60.0, "Guest")]),
         span("b", 60.0, 90.0, Vec::new()),
     ];
-    let tags = Tags { title: "NHL S10 part 1", show_title: "The Neighborhood Listen", artwork: None, episodes: &episodes };
+    let show_title = "The Neighborhood Listen";
+    let tags = Tags { title: "NHL S10 part 1", show_title, artwork: None, episodes: &episodes };
     assert_eq!(write(&path, &tags).unwrap(), 3);
 
     let tag = Tag::read_from_path(&path).unwrap();
@@ -72,6 +75,24 @@ fn chapters_round_trip_through_the_file() {
             ("ep02", 60_000, 90_000, Some("b title")),
         ]
     );
+
+    assert_eq!(chapter_times_as_players_read_them(&path), vec![(0.0, 30.0), (30.0, 60.0), (60.0, 90.0)]);
+}
+
+/// What ffmpeg, and the players built on it, make of the chapters in the file.
+fn chapter_times_as_players_read_them(path: &Path) -> Vec<(f64, f64)> {
+    let output = Command::new("ffprobe")
+        .args(["-v", "error", "-show_entries", "chapter=start_time,end_time", "-of", "csv=p=0"])
+        .arg(path)
+        .output()
+        .expect("running ffprobe");
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(|line| {
+            let (start, end) = line.split_once(',').expect("a start and an end");
+            (start.parse().unwrap(), end.parse().unwrap())
+        })
+        .collect()
 }
 
 fn title_of(frames: &[id3::Frame]) -> Option<&str> {

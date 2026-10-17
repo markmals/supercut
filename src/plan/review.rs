@@ -143,8 +143,12 @@ fn cut_review(index: usize, cut: &Cut, duration: f64, transcript: Option<&Transc
 fn cut_context(transcript: &Transcript, start: f64, end: f64) -> CutContext {
     let before = words_before(transcript, start);
     let inside: Vec<&str> = transcript.words_between(start, end).map(|word| word.text.as_str()).collect();
-    let after: Vec<&str> =
-        transcript.words().filter(|word| word.start >= end).take(CONTEXT_WORDS).map(|word| word.text.as_str()).collect();
+    let after: Vec<&str> = transcript
+        .words()
+        .filter(|word| word.start >= end)
+        .take(CONTEXT_WORDS)
+        .map(|word| word.text.as_str())
+        .collect();
     let (opening, closing) = match inside.len() > CONTEXT_WORDS * 2 {
         true => (&inside[..CONTEXT_WORDS], &inside[inside.len() - CONTEXT_WORDS..]),
         false => (&inside[..], &[][..]),

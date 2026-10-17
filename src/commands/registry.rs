@@ -186,7 +186,7 @@ pub const OPERATIONS: &[Operation] = &[
     },
     Operation {
         path: "plans preview",
-        effects: &[WritesLibrary, HeavyCompute],
+        effects: &[WritesLibrary],
         output: "{preview, duration, transitions: [{index, preview_time, episode, kind, cut_start, cut_end, reason}]}",
         example: "supercut plans preview plan.json",
         keywords: &["listen", "transitions", "audition"],

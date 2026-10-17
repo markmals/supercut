@@ -27,7 +27,8 @@ pub struct EpisodeReport {
 pub fn check(context: &Context, plan: &Plan) -> anyhow::Result<Report> {
     let missing = preflight(context, plan);
     if !missing.is_empty() {
-        return Ok(Report { ok: false, errors: missing, warnings: Vec::new(), output_duration: Time(0.0), episodes: Vec::new() });
+        let episodes = Vec::new();
+        return Ok(Report { ok: false, errors: missing, warnings: Vec::new(), output_duration: Time(0.0), episodes });
     }
 
     let resolved = resolve::resolve(context, plan)?;

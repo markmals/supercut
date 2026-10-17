@@ -15,7 +15,10 @@ pub fn run(args: &[OsString], total_seconds: f64, label: &str) -> anyhow::Result
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
-        .with_context(|| "running ffmpeg; is it installed and on PATH?")?;
+        .map_err(|error| {
+            anyhow::Error::new(error)
+                .context(CliError::new(ErrorCode::ExternalTool, "could not run ffmpeg").hint("install ffmpeg"))
+        })?;
 
     let progress = child.stdout.take().expect("stdout is piped");
     report(BufReader::new(progress), total_seconds, label);

@@ -17,7 +17,11 @@ pub struct Tags<'a> {
     pub episodes: &'a [EpisodeSpan],
 }
 
-/// Replaces the file's tags with ID3v2.4: titles, cover art and the chapter tree.
+/// Replaces the file's tags: titles, cover art and the chapter tree.
+///
+/// ID3v2.3, not 2.4, because of the frames nested inside CHAP and CTOC: ffmpeg — and every
+/// player built on it — reads their lengths as plain 32-bit integers, so a 2.4 tag loses any
+/// chapter whose title or description is 128 bytes or longer.
 pub fn write(path: &Path, tags: &Tags) -> anyhow::Result<usize> {
     let mut tag = Tag::new();
     tag.set_text("TIT2", tags.title);
@@ -27,41 +31,51 @@ pub fn write(path: &Path, tags: &Tags) -> anyhow::Result<usize> {
         tag.add_frame(picture(artwork)?);
     }
     let chapters = add_chapters(&mut tag, tags.episodes);
-    tag.write_to_path(path, Version::Id3v24).with_context(|| format!("tagging {}", path.display()))?;
+    tag.write_to_path(path, Version::Id3v23).with_context(|| format!("tagging {}", path.display()))?;
     Ok(chapters)
 }
 
 /// One top-level entry per episode: its own table of contents when it has segment chapters,
-/// otherwise a single chapter. Returns how many chapters were written.
+/// otherwise a single chapter. Every chapter frame comes before the tables that group them,
+/// because ffmpeg stops collecting chapters at the first table of contents it meets.
+/// Returns how many chapters were written.
 fn add_chapters(tag: &mut Tag, episodes: &[EpisodeSpan]) -> usize {
+    let mut chapters = Vec::new();
+    let mut tables = Vec::new();
     let mut entries = Vec::new();
-    let mut written = 0;
     for (index, span) in episodes.iter().enumerate() {
         let id = format!("ep{:02}", index + 1);
         if span.chapters.is_empty() {
-            tag.add_frame(chapter(&id, span.start, span.end, &span.title, Some(&span.description)));
-            written += 1;
+            chapters.push(chapter(&id, span.start, span.end, &span.title, Some(&span.description)));
             entries.push(id);
             continue;
         }
         let mut children = Vec::new();
         for (position, segment) in span.chapters.iter().enumerate() {
             let child = format!("{id}c{:02}", position + 1);
-            // Flat chapter readers show no hierarchy, so every chapter names its episode.
-            let title = match segment.title == span.title {
-                true => span.title.clone(),
-                false => format!("{} - {}", span.title, segment.title),
-            };
-            tag.add_frame(chapter(&child, segment.start, segment.end, &title, segment.description.as_deref()));
+            let title = segment_title(span, &segment.title);
+            chapters.push(chapter(&child, segment.start, segment.end, &title, segment.description.as_deref()));
             children.push(child);
-            written += 1;
         }
         let about = vec![text("TIT2", &span.title), text("TIT3", &span.description)];
-        tag.add_frame(contents(&id, false, children, about));
+        tables.push(contents(&id, false, children, about));
         entries.push(id);
     }
-    tag.add_frame(contents("toc", true, entries, Vec::new()));
+    tables.push(contents("toc", true, entries, Vec::new()));
+
+    let written = chapters.len();
+    for frame in chapters.into_iter().chain(tables) {
+        tag.add_frame(frame);
+    }
     written
+}
+
+/// Flat chapter readers show no hierarchy, so every chapter names its episode.
+fn segment_title(span: &EpisodeSpan, title: &str) -> String {
+    match title == span.title {
+        true => span.title.clone(),
+        false => format!("{} - {title}", span.title),
+    }
 }
 
 fn chapter(id: &str, start: f64, end: f64, title: &str, description: Option<&str>) -> Frame {

@@ -132,8 +132,8 @@ impl Reel {
             let clip_gain = input.target_lufs - clip.integrated_lufs;
             self.push(Source::file(&clip.audio, 0.0, clip.duration), clip_gain, EDGE_FADE_SECONDS, EDGE_FADE_SECONDS);
         }
-        let head = context.min(next.duration);
-        self.push(Source::file(&next.audio, 0.0, head), input.target_lufs - next.integrated_lufs, 0.0, EDGE_FADE_SECONDS);
+        let head = Source::file(&next.audio, 0.0, context.min(next.duration));
+        self.push(head, input.target_lufs - next.integrated_lufs, 0.0, EDGE_FADE_SECONDS);
         self.transitions.push(Transition {
             index: self.transitions.len() + 1,
             preview_time: Time(self.transition_start()),
