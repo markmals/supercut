@@ -44,9 +44,10 @@ artwork = "~/Pictures/supercut/example-show.jpg"
 # Clip played between episodes.
 interstitial = "~/Music/supercut/example-show-interstitial.mp3"
 
-# The show's recurring segments. `label` sorts every stretch of an episode into one of these,
-# and `draft` turns them into cuts and chapters. Write `describe` for the classifier: say what
-# the segment sounds like.
+# The show's recurring segments. `labels create` sorts every stretch of an episode into one of
+# these, and `plans draft` turns them into cuts and chapters. Write `describe` for the
+# classifier: say what the segment sounds like. Only `label` and `describe` reach the
+# classifier; changing the rest needs no relabeling.
 [[shows.example-show.segments]]
 label = "intro"
 title = "Intro"
@@ -61,4 +62,14 @@ describe = "The hosts talking to each other, with no guest present."
 label = "ads"
 title = "Ads"
 describe = "Read or produced advertising, usually with a jingle around it."
+# `plans draft` cuts every confident `ads` segment.
 cut = true
+# Where the cut begins: "after-previous-speech" (default; the jingle leading in goes too) or
+# "before-own-speech" (keep the jingle, cut from the ad's first word).
+cut_start = "after-previous-speech"
+# Where it ends: "before-next-speech" (default) or "after-own-speech" (keep the jingle after it).
+cut_end = "before-next-speech"
+# Phrases the hosts say right before and right after the segment. When present they decide the
+# cut's edges more precisely than the labels can.
+after_phrases = ["we'll be right back"]
+before_phrases = ["welcome back"]
