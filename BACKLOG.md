@@ -5,14 +5,13 @@ Agreed order: get The Neighborhood Listen (NHL) right end to end, then publishin
 ## The Neighborhood Listen
 
 1. S09 pt 2: S09E08–E13 plus Bonus Room #30, the one half season never made. Redraft (the saved plan predates the theme, outro, bumper and fade fixes), review, preview, render on approval.
-2. Decide the end-of-episode plug rule: the hand-made supercuts cut from the Maximus/bonus-content pitch to the end when only a goodbye follows it (S10E01, S10E03) and kept it when the hosts riffed after it (S10E02, S10E06); `plans draft` currently always keeps it.
-3. A speculative cut of S11 pt 1.
-4. Hand cuts no recording places yet: the openings of S05E01 and Bonus Rooms #1, #8 and #10, and the endings of most of S01–S04 and Bonus Rooms #1 and #3 (their closing music differs from the S05–S10 outro).
+2. A speculative cut of S11 pt 1.
+3. Hand cuts no recording places yet: the openings of S05E01 and Bonus Rooms #1, #8 and #10, and the endings of most of S01–S04 and Bonus Rooms #1 and #3 (their closing music differs from the S05–S10 outro).
 
 ## Publishing
 
 - A private R2 feed per show behind a long secret URL. An unfilled RSS template from September 2025 sits in `Podcasts/feeds/*.rss`.
-- Replace the Castro-specific `--sideload` with a generic publish step: folder copies named after the supercut's title (Castro shows a sideload's file name as its episode title; the existing sideloads use `<Show> - <range>.mp3`) and the R2 feed.
+- Replace the Castro-specific `--sideload` with a generic publish step (agreed): any number of configured folder copies, each file named after the supercut's title (Castro shows a sideload's file name as its episode title; the existing sideloads use `<Show> - <range>.mp3`), plus the R2 feed. Castro becomes one configured folder the user can drop later.
 
 ## Other shows (after NHL)
 
