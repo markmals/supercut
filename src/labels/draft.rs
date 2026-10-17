@@ -9,7 +9,7 @@ use crate::analysis::jingle::Jingles;
 use crate::analysis::{Envelope, episode_analysis, episode_envelope};
 use crate::labels::{closing, opening, parts};
 use crate::commands::Context;
-use crate::config::{SegmentKind, ShowConfig};
+use crate::config::{EpisodeName, SegmentKind, ShowConfig};
 use crate::error::CliError;
 use crate::labels::also_cut::AlsoCut;
 use crate::labels::record::{LabeledSegment, LabeledUnit, Labels};
@@ -153,7 +153,8 @@ fn plan_episode(
         cuts = closing::with_outro(cuts, outro);
     }
     let cuts = tidy(cuts, duration);
-    let laid_out = show.chapters.as_ref().map(|scheme| parts::chapters(scheme, &episode.title, &cuts));
+    let name = EpisodeName { title: &episode.title, season: episode.season, episode: episode.number };
+    let laid_out = show.chapters.as_ref().map(|scheme| parts::chapters(scheme, &name, &cuts));
     let bumper = recordings.bumpers.ending_of(&audio, duration)?;
     let cuts = match &bumper {
         Some(bumper) => closing::keeping_bumper(cuts, bumper),

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context as _, anyhow};
 use serde::{Deserialize, Serialize};
 
-pub use chapters::ChapterScheme;
+pub use chapters::{ChapterScheme, EpisodeName};
 
 use crate::error::CliError;
 
