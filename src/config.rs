@@ -1,0 +1,186 @@
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context as _, anyhow};
+use serde::{Deserialize, Serialize};
+
+const APP_DIR: &str = "supercut";
+
+/// `config.toml` in the platform config directory (`~/Library/Application Support/supercut` on
+/// macOS, `$XDG_CONFIG_HOME/supercut` on Linux, `%APPDATA%\supercut` on Windows).
+#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Config {
+    /// Downloaded episodes, transcripts, analysis and plans. Defaults to the platform data directory.
+    pub library_dir: Option<PathBuf>,
+    /// Where rendered supercuts go, one folder per show.
+    pub output_dir: Option<PathBuf>,
+    /// Podcast app sideload folder that `render --sideload` copies finished supercuts into.
+    pub sideload_dir: Option<PathBuf>,
+    #[serde(default)]
+    pub transcription: TranscriptionConfig,
+    #[serde(default)]
+    pub loudness: LoudnessConfig,
+    #[serde(default)]
+    pub jev: JevSettings,
+    #[serde(default)]
+    pub shows: BTreeMap<String, ShowConfig>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct TranscriptionConfig {
+    pub engine: TranscriptionEngine,
+    /// mlx-whisper: a Hugging Face repo or model directory. whisper.cpp: a ggml model file.
+    pub model: String,
+    pub language: String,
+}
+
+impl Default for TranscriptionConfig {
+    fn default() -> Self {
+        Self {
+            engine: TranscriptionEngine::MlxWhisper,
+            model: "mlx-community/whisper-large-v3-turbo".into(),
+            language: "en".into(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum TranscriptionEngine {
+    MlxWhisper,
+    WhisperCpp,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct LoudnessConfig {
+    /// Integrated loudness every episode is brought to, in LUFS.
+    pub target_lufs: f64,
+    /// Ceiling for the true-peak limiter, in dBTP.
+    pub true_peak_db: f64,
+}
+
+impl Default for LoudnessConfig {
+    fn default() -> Self {
+        Self { target_lufs: -16.0, true_peak_db: -1.5 }
+    }
+}
+
+/// TypeSafe's Jev decision model, which labels transcript windows.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct JevSettings {
+    /// The System One endpoint requests are POSTed to.
+    pub endpoint: String,
+    /// Pinned model id; probabilities shift between releases.
+    pub model: String,
+    /// Command that prints the API key, e.g. `["op", "read", "op://…"]`. The `TYPESAFE_API_KEY`
+    /// environment variable takes precedence.
+    #[serde(default)]
+    pub api_key_command: Vec<String>,
+    /// Requests in flight at once.
+    pub concurrency: usize,
+}
+
+impl Default for JevSettings {
+    fn default() -> Self {
+        Self {
+            endpoint: "https://api.typesafe.ai/v1/systemone".into(),
+            model: "jev-1.13.0".into(),
+            api_key_command: Vec::new(),
+            concurrency: 8,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShowConfig {
+    pub title: String,
+    /// RSS feeds to read episodes from, private feeds included. Later feeds add episodes the
+    /// earlier ones lack; an episode in several feeds keeps the first feed's copy.
+    pub feeds: Vec<String>,
+    /// Cover art embedded in rendered supercuts.
+    pub artwork: Option<PathBuf>,
+    /// Clip played between episodes.
+    pub interstitial: Option<PathBuf>,
+    /// The show's recurring segments. `label` sorts every stretch of an episode into one of
+    /// these; `draft` turns them into cuts and chapters.
+    #[serde(default)]
+    pub segments: Vec<SegmentKind>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SegmentKind {
+    /// Short id, e.g. `classified`.
+    pub label: String,
+    /// Chapter title for stretches of this segment.
+    pub title: String,
+    /// What the segment sounds like, written for the classifier.
+    pub describe: String,
+    /// `draft` cuts this segment from every episode.
+    #[serde(default)]
+    pub cut: bool,
+}
+
+impl Config {
+    pub fn default_path() -> anyhow::Result<PathBuf> {
+        let base = dirs::config_dir().ok_or_else(|| anyhow!("no config directory on this platform"))?;
+        Ok(base.join(APP_DIR).join("config.toml"))
+    }
+
+    /// Reads the config file; a missing file is an empty config so `config init` can run.
+    pub fn load(path: &Path) -> anyhow::Result<Self> {
+        let text = match std::fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Self::default()),
+            Err(error) => return Err(error).with_context(|| format!("reading {}", path.display())),
+        };
+        let mut config: Config =
+            toml::from_str(&text).with_context(|| format!("parsing {}", path.display()))?;
+        config.expand_home_paths();
+        Ok(config)
+    }
+
+    pub fn library_dir(&self) -> anyhow::Result<PathBuf> {
+        if let Some(dir) = &self.library_dir {
+            return Ok(dir.clone());
+        }
+        let base = dirs::data_local_dir().ok_or_else(|| anyhow!("no data directory on this platform"))?;
+        Ok(base.join(APP_DIR).join("library"))
+    }
+
+    pub fn output_dir(&self) -> anyhow::Result<&Path> {
+        self.output_dir
+            .as_deref()
+            .ok_or_else(|| anyhow!("`output_dir` is not set in the config file"))
+    }
+
+    pub fn show(&self, slug: &str) -> anyhow::Result<&ShowConfig> {
+        self.shows.get(slug).ok_or_else(|| {
+            let known: Vec<&str> = self.shows.keys().map(String::as_str).collect();
+            anyhow!("no show `{slug}` in the config file (configured: {})", known.join(", "))
+        })
+    }
+
+    fn expand_home_paths(&mut self) {
+        for path in [&mut self.library_dir, &mut self.output_dir, &mut self.sideload_dir] {
+            expand_home(path);
+        }
+        for show in self.shows.values_mut() {
+            expand_home(&mut show.artwork);
+            expand_home(&mut show.interstitial);
+        }
+    }
+}
+
+fn expand_home(path: &mut Option<PathBuf>) {
+    let Some(current) = path.as_ref() else { return };
+    let Ok(rest) = current.strip_prefix("~") else { return };
+    if let Some(home) = dirs::home_dir() {
+        *path = Some(home.join(rest));
+    }
+}
