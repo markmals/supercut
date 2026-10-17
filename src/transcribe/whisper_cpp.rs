@@ -7,8 +7,11 @@ use anyhow::Context as _;
 use serde::Deserialize;
 
 use crate::config::TranscriptionConfig;
+use crate::error::{CliError, ErrorCode};
 use crate::media;
-use crate::transcript::{Transcript, Word};
+use crate::transcript::Transcript;
+
+mod words;
 
 const ENGINE: &str = "whisper-cpp";
 const OUTPUT_NAME: &str = "transcript";
@@ -16,6 +19,7 @@ const OUTPUT_NAME: &str = "transcript";
 pub fn transcribe(config: &TranscriptionConfig, audio: &Path) -> anyhow::Result<Transcript> {
     let scratch = tempfile::tempdir().context("making a scratch folder for whisper-cli")?;
     let output_base = scratch.path().join(OUTPUT_NAME);
+    let alignment = alignment_preset(&config.model)?;
     media::run(
         "whisper-cli",
         [
@@ -26,6 +30,11 @@ pub fn transcribe(config: &TranscriptionConfig, audio: &Path) -> anyhow::Result<
             // Carrying context between windows is what sends Whisper into minutes-long loops.
             OsStr::new("-mc"),
             OsStr::new("0"),
+            // Token times straight from the decoder are seconds off; aligning the attention
+            // weights (which flash attention does not keep) puts them on the words.
+            OsStr::new("-dtw"),
+            OsStr::new(&alignment),
+            OsStr::new("-nfa"),
             // The full JSON is the only output that carries per-token times.
             OsStr::new("-ojf"),
             OsStr::new("-of"),
@@ -34,49 +43,41 @@ pub fn transcribe(config: &TranscriptionConfig, audio: &Path) -> anyhow::Result<
             OsStr::new("-f"),
             audio.as_os_str(),
         ],
-    )?;
+    )
+    .with_context(|| {
+        CliError::new(ErrorCode::ExternalTool, "whisper-cli did not transcribe the episode")
+            .hint(format!(
+                "check whisper-cli is installed, transcription.model is a ggml model file and `-dtw {alignment}` names its size"
+            ))
+    })?;
     let written = output_base.with_extension("json");
     let json = std::fs::read_to_string(&written)
         .with_context(|| format!("reading the transcript whisper-cli wrote to {}", written.display()))?;
     parse(&json, config)
 }
 
-/// Turns whisper.cpp's full JSON into the shared transcript. Whisper emits sub-word tokens; a
-/// leading space is what marks the start of the next word.
-pub fn parse(json: &str, config: &TranscriptionConfig) -> anyhow::Result<Transcript> {
-    #[derive(Deserialize)]
-    struct Report {
-        transcription: Vec<RawSegment>,
-    }
-    #[derive(Deserialize)]
-    struct RawSegment {
-        #[serde(default)]
-        tokens: Vec<RawToken>,
-    }
-    #[derive(Deserialize)]
-    struct RawToken {
-        text: String,
-        offsets: Offsets,
-        p: Option<f32>,
-    }
-    #[derive(Deserialize)]
-    struct Offsets {
-        from: f64,
-        to: f64,
-    }
+/// The model size `-dtw` wants, read off the model file name: `ggml-base.en-q5_0.bin` is
+/// `base.en`.
+fn alignment_preset(model: &str) -> anyhow::Result<String> {
+    let stem = Path::new(model)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .ok_or_else(|| CliError::invalid(format!("transcription.model `{model}` is not a model file name")))?;
+    let name = stem.strip_prefix("ggml-").unwrap_or(stem);
+    let size = match name.split_once("-q") {
+        Some((size, _quantization)) => size,
+        None => name,
+    };
+    Ok(size.to_owned())
+}
 
+/// Turns whisper.cpp's full JSON into the shared transcript.
+pub fn parse(json: &str, config: &TranscriptionConfig) -> anyhow::Result<Transcript> {
     let report: Report = serde_json::from_str(json).context("parsing whisper-cli JSON")?;
-    let segments = report
-        .transcription
-        .into_iter()
-        .filter_map(|segment| {
-            let mut words = Words::default();
-            for token in segment.tokens.iter().filter(|token| !is_special(&token.text)) {
-                words.push(&token.text, token.offsets.from / 1000.0, token.offsets.to / 1000.0, token.p);
-            }
-            super::segment_of(words.finish())
-        })
-        .collect();
+    let mut segments = Vec::with_capacity(report.transcription.len());
+    for segment in &report.transcription {
+        segments.extend(super::segment_of(words::of(segment)?));
+    }
     Ok(Transcript {
         engine: ENGINE.to_owned(),
         model: config.model.clone(),
@@ -86,88 +87,48 @@ pub fn parse(json: &str, config: &TranscriptionConfig) -> anyhow::Result<Transcr
     })
 }
 
-/// Timestamps and other control tokens whisper.cpp spells out, such as `[_BEG_]` and `[_TT_465]`.
-fn is_special(text: &str) -> bool {
-    text.starts_with("[_")
+#[derive(Deserialize)]
+struct Report {
+    transcription: Vec<Segment>,
 }
 
-/// Words being glued together from sub-word tokens.
-#[derive(Default)]
-struct Words {
-    done: Vec<Word>,
+#[derive(Deserialize)]
+struct Segment {
+    offsets: Offsets,
+    #[serde(default)]
+    tokens: Vec<Token>,
+}
+
+#[derive(Deserialize)]
+struct Token {
     text: String,
-    start: f64,
-    end: f64,
-    probabilities: Vec<f32>,
+    /// Where the aligned attention weights put the token, in hundredths of a second; `-1` for
+    /// the control tokens, which carry no speech.
+    t_dtw: f64,
+    p: Option<f32>,
 }
 
-impl Words {
-    fn push(&mut self, token: &str, from: f64, to: f64, probability: Option<f32>) {
-        if token.starts_with(' ') || self.text.is_empty() {
-            self.close();
-            self.start = from;
-            self.end = to;
-        }
-        self.text.push_str(token);
-        self.end = self.end.max(to);
-        self.probabilities.extend(probability);
-    }
-
-    fn close(&mut self) {
-        let mean = match self.probabilities.len() {
-            0 => None,
-            count => Some(self.probabilities.iter().sum::<f32>() / count as f32),
-        };
-        self.done.extend(super::word_of(&self.text, self.start, self.end, mean));
-        self.text.clear();
-        self.probabilities.clear();
-    }
-
-    fn finish(mut self) -> Vec<Word> {
-        self.close();
-        self.done
-    }
+#[derive(Deserialize)]
+struct Offsets {
+    /// Milliseconds from the start of the audio.
+    to: f64,
 }
 
 #[cfg(test)]
 mod tests {
     use crate::config::{TranscriptionConfig, TranscriptionEngine};
 
-    fn config() -> TranscriptionConfig {
+    #[test]
+    fn reads_the_model_size_off_the_file_name() {
+        assert_eq!(super::alignment_preset("/tmp/ggml-base.en.bin").unwrap(), "base.en");
+        assert_eq!(super::alignment_preset("~/models/ggml-large-v3-turbo-q5_0.bin").unwrap(), "large-v3-turbo");
+    }
+
+    pub(super) fn config() -> TranscriptionConfig {
         TranscriptionConfig {
             engine: TranscriptionEngine::WhisperCpp,
             model: "/tmp/ggml-base.en.bin".into(),
             language: "en".into(),
         }
-    }
-
-    fn token(text: &str, from: u32, to: u32, p: f32) -> String {
-        format!(r#"{{"text": "{text}", "offsets": {{"from": {from}, "to": {to}}}, "id": 1, "p": {p}}}"#)
-    }
-
-    #[test]
-    fn glues_sub_word_tokens_into_words_with_token_times() {
-        let json = format!(
-            r#"{{"transcription": [{{"text": " It's been longer.", "tokens": [{}]}}]}}"#,
-            [
-                token("[_BEG_]", 0, 0, 0.58),
-                token(" It", 0, 120, 0.4),
-                token("'s", 120, 240, 0.6),
-                token(" been", 410, 700, 1.0),
-                token(" longer", 700, 980, 1.0),
-                token(".", 980, 1100, 1.0),
-                token("[_TT_110]", 1100, 1100, 0.9),
-            ]
-            .join(",")
-        );
-        let transcript = super::parse(&json, &config()).unwrap();
-        let words: Vec<&str> = transcript.words().map(|word| word.text.as_str()).collect();
-        assert_eq!(words, ["It's", "been", "longer."]);
-        let first = transcript.segments[0].words.first().unwrap();
-        assert_eq!((first.start, first.end), (0.0, 0.24));
-        assert_eq!(first.probability, Some(0.5));
-        let last = transcript.words().last().unwrap();
-        assert_eq!((last.start, last.end), (0.7, 1.1));
-        assert_eq!(transcript.segments[0].text, "It's been longer.");
     }
 }

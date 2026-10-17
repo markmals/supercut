@@ -1,5 +1,7 @@
 //! The transcript as an agent reads it: one line per utterance, holes called out.
 
+use serde::Serialize;
+
 use crate::transcript::{Transcript, Word};
 
 /// A gap this long means someone else started talking, or the same person moved on.
@@ -7,30 +9,42 @@ const PAUSE_SECONDS: f64 = 1.0;
 /// Longest line, so that a monologue still gives the reader timestamps to aim at.
 const UTTERANCE_SECONDS: f64 = 25.0;
 
-/// The part of `transcript` between `from` and `to`, words and unreliable spans both.
-pub fn slice(transcript: &Transcript, from: f64, to: f64) -> Transcript {
-    let segments = transcript
-        .segments
-        .iter()
-        .filter_map(|segment| {
-            let words: Vec<Word> =
-                segment.words.iter().filter(|word| word.end > from && word.start < to).cloned().collect();
-            super::segment_of(words)
-        })
-        .collect();
-    Transcript {
-        engine: transcript.engine.clone(),
-        model: transcript.model.clone(),
-        language: transcript.language.clone(),
-        unreliable: transcript.unreliable_between(from, to).cloned().collect(),
-        segments,
+/// Words said without a noticeable pause: one line of the transcript.
+#[derive(Serialize)]
+pub struct Utterance {
+    pub start: f64,
+    pub end: f64,
+    pub text: String,
+}
+
+/// The utterances of `transcript` that overlap `[from, to)`.
+pub fn utterances(transcript: &Transcript, from: f64, to: f64) -> Vec<Utterance> {
+    let mut utterances: Vec<Utterance> = Vec::new();
+    let mut spoken_until = 0.0;
+    for word in transcript.words_between(from, to) {
+        match utterances.last_mut() {
+            Some(current)
+                if word.start - spoken_until <= PAUSE_SECONDS
+                    && word.end - current.start <= UTTERANCE_SECONDS =>
+            {
+                extend(current, word);
+            }
+            _ => utterances.push(Utterance { start: word.start, end: word.end, text: word.text.clone() }),
+        }
+        spoken_until = word.end;
     }
+    utterances
+}
+
+fn extend(utterance: &mut Utterance, word: &Word) {
+    utterance.text.push(' ');
+    utterance.text.push_str(&word.text);
+    utterance.end = word.end;
 }
 
 /// `[m:ss.s] what was said`, one line per utterance, with unreliable spans in their place.
 pub fn render(transcript: &Transcript, from: f64, to: f64) -> String {
-    let words: Vec<&Word> = transcript.words_between(from, to).collect();
-    let mut lines: Vec<(f64, String)> = utterances(&words)
+    let mut lines: Vec<(f64, String)> = utterances(transcript, from, to)
         .into_iter()
         .map(|utterance| (utterance.start, format!("[{}] {}", stamp(utterance.start), utterance.text)))
         .collect();
@@ -41,32 +55,7 @@ pub fn render(transcript: &Transcript, from: f64, to: f64) -> String {
     lines.into_iter().map(|(_, line)| line).collect::<Vec<_>>().join("\n")
 }
 
-struct Utterance {
-    start: f64,
-    text: String,
-}
-
-/// Words gathered into speakable lines: a pause or a long enough run starts the next one.
-fn utterances(words: &[&Word]) -> Vec<Utterance> {
-    let mut utterances: Vec<Utterance> = Vec::new();
-    let mut spoken_until = 0.0;
-    for word in words {
-        match utterances.last_mut() {
-            Some(current)
-                if word.start - spoken_until <= PAUSE_SECONDS
-                    && word.end - current.start <= UTTERANCE_SECONDS =>
-            {
-                current.text.push(' ');
-                current.text.push_str(&word.text);
-            }
-            _ => utterances.push(Utterance { start: word.start, text: word.text.clone() }),
-        }
-        spoken_until = word.end;
-    }
-    utterances
-}
-
-/// `m:ss.s`, counting minutes past the hour mark so that long episodes stay readable.
+/// `m:ss.s`: minutes keep counting past sixty, which reads better than hours for one episode.
 fn stamp(seconds: f64) -> String {
     let minutes = (seconds / 60.0).floor();
     format!("{minutes}:{:04.1}", seconds - minutes * 60.0)
@@ -124,12 +113,12 @@ mod tests {
     }
 
     #[test]
-    fn slices_words_and_spans_that_overlap_the_window() {
+    fn keeps_only_what_overlaps_the_window() {
         let span = UnreliableSpan { start: 70.0, end: 95.5, reason: "engine repeated \"no\" 40 times".into() };
         let whole = transcript(&[(60.0, 60.5, "Oh,"), (60.5, 61.0, "no."), (96.0, 96.4, "Anyway.")], vec![span]);
-        let part = super::slice(&whole, 61.0, 96.2);
-        assert_eq!(part.words().map(|word| word.text.as_str()).collect::<Vec<_>>(), ["Anyway."]);
-        assert_eq!(part.unreliable.len(), 1);
-        assert!(super::slice(&whole, 96.5, 200.0).unreliable.is_empty());
+        let part = super::utterances(&whole, 61.0, 96.2);
+        assert_eq!(part.len(), 1);
+        assert_eq!(part[0].text, "Anyway.");
+        assert_eq!(whole.unreliable_between(96.5, 200.0).count(), 0);
     }
 }

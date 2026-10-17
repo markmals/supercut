@@ -10,7 +10,7 @@ use std::path::Path;
 use crate::config::{TranscriptionConfig, TranscriptionEngine};
 use crate::transcript::{Segment, Transcript, Word};
 
-pub use view::{render, slice};
+pub use view::{Utterance, render, utterances};
 
 /// Transcribes one audio file with the configured engine and strips the loops the engine fell
 /// into, which are recorded as unreliable spans.

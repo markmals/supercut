@@ -152,6 +152,7 @@ mod tests {
         assert_eq!(transcript.unreliable.len(), 1);
         assert!(span.reason.starts_with("engine repeated \"i mean\""), "{}", span.reason);
         assert!(span.end - span.start > 20.0);
-        assert_eq!(transcript.words().count(), 0);
+        // Only the half-phrase the fixture ends on is left over.
+        assert_eq!(transcript.words().map(|word| word.text.as_str()).collect::<Vec<_>>(), ["I"]);
     }
 }
