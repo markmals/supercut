@@ -27,3 +27,5 @@ Agreed order: get The Neighborhood Listen (NHL) right end to end, then publishin
 - `--output` means a format on some commands and a file on others.
 - `plans draft` does not read the show's rules file; the agent applies it.
 - Shows without a `chapters` layout get a chapter per labeled segment, and those go stale after hand edits (a kept low-confidence `classified` keeps its chapter, a hand cut can leave a seconds-long one) and flicker when the labels flip inside a segment. `plans validate` only reports chapters that fall wholly inside a cut; it could also flag chapters a few seconds long.
+- supercut panics ("failed printing to stdout: Broken pipe") when the program reading its output exits first, as `supercut … | head` does; it should exit quietly.
+- Windows is untested: the code builds and passes the suite on macOS and Linux (Tangerine), but nothing has compiled or run it on Windows. A CI matrix (macOS, Ubuntu, Windows) running `cargo test` would cover all three; it needs the repo on GitHub.
