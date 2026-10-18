@@ -4,9 +4,11 @@ Agreed order: get The Neighborhood Listen (NHL) right end to end, then publishin
 
 ## The Neighborhood Listen
 
-1. NHL redux: rebuild every supercut from S01 to S11-so-far into `Podcasts/nhl-redux`, one per whole season (a long MP3 is fine; Logic was the limit). All 149 episodes are transcribed; 133 are labeled. Labeling stopped on Jev's 402 Payment Required with 16 episodes left: once the user adds credit, rerun `labels create` with them present to approve 1Password (labeled episodes are skipped). Then draft, check every cut against the hand-made supercuts with `plans compare`, preview, render on approval. Bonus Room #36 is dropped; the CRISIS crossover closes season 10 (cuts and chapters in the show's rules).
+1. NHL redux: rebuild every supercut from S01 to S11-so-far into `Podcasts/nhl-redux`, one per whole season (a long MP3 is fine; Logic was the limit). All 149 episodes are transcribed and labeled; all eleven season plans (`plans/the-neighborhood-listen-S01.json` … `S11.json`) are drafted and reconciled with the hand-made cuts (median edge differences 0.00–0.17 s; openings deliberately stay at the theme's end), and validate. Next: the user's answers on the open judgment calls, then render on approval. Bonus Room #36 is dropped; the CRISIS crossover closes season 10 (cuts and chapters in the show's rules).
 2. A speculative cut of S11 so far (S11E01–E02, Bonus Room #37): part of the redux.
 3. Hand cuts no recording places yet: the openings of S05E01 and Bonus Rooms #1, #8 and #10; the endings of S04E03, E04, E12, E13 and Bonus Rooms #1 and #3; and S03E06–E09, E11 and E13, whose credits are read aloud so the draft cuts 29 s late without warning.
+4. Ad-break ends: the hand-made cuts end inside the return sting, 1–5 s before "welcome back"; the draft ends just before "welcome back". Neither `cut_end` setting reproduces the hand-made splices (tested on S06 and S10: about half the ends stay more than 1 s off either way), so every draft's break ends are moved by hand. The return sting is a recurring recording; a configured `stings` list could place these ends the way `outros` places the credits cut.
+5. Missed second ads: the draft kept a real classified ad the labels were unsure of (p 0.54–0.67) in S01E04, S01E13, S02E02, S02E11, S05E02, S05E05, S06E08, S06E12, S07E02, S07E09, S09E03, S09E07 and S10E09. A low-confidence `classified` fenced by the show's phrases ("be right back" before, "welcome back" after) could be cut rather than only reported.
 
 ## Publishing
 
