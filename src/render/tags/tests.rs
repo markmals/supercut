@@ -8,7 +8,16 @@ use crate::plan::timeline::{EpisodeSpan, SegmentChapter};
 
 fn silent_mp3(path: &Path) {
     let status = Command::new("ffmpeg")
-        .args(["-nostdin", "-hide_banner", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"])
+        .args([
+            "-nostdin",
+            "-hide_banner",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=44100:cl=stereo",
+        ])
         .args(["-t", "2", "-c:a", "libmp3lame", "-b:a", "64k", "-y"])
         .arg(path)
         .status()
@@ -63,7 +72,12 @@ fn chapters_round_trip_through_the_file() {
     let chapters: Vec<(&str, u32, u32, Option<&str>)> = tag
         .chapters()
         .map(|chapter| {
-            (chapter.element_id.as_str(), chapter.start_time, chapter.end_time, title_of(&chapter.frames))
+            (
+                chapter.element_id.as_str(),
+                chapter.start_time,
+                chapter.end_time,
+                title_of(&chapter.frames),
+            )
         })
         .collect();
     assert_eq!(
@@ -75,7 +89,10 @@ fn chapters_round_trip_through_the_file() {
         ]
     );
 
-    assert_eq!(chapter_times_as_players_read_them(&path), vec![(0.0, 30.0), (30.0, 60.0), (60.0, 90.0)]);
+    assert_eq!(
+        chapter_times_as_players_read_them(&path),
+        vec![(0.0, 30.0), (30.0, 60.0), (60.0, 90.0)]
+    );
 }
 
 /// What ffmpeg, and the players built on it, make of the chapters in the file.

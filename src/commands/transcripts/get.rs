@@ -5,8 +5,8 @@ use crate::error::CliError;
 use crate::library::read_json;
 use crate::output::{self, Format};
 use crate::timecode::Time;
-use crate::transcript::{Transcript, UnreliableSpan};
 use crate::transcribe::{self, Utterance};
+use crate::transcript::{Transcript, UnreliableSpan};
 
 /// Print an episode's transcript, optionally only a time range.
 ///

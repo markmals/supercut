@@ -51,7 +51,11 @@ impl Transcript {
     }
 
     /// Unreliable spans that overlap `[start, end)`.
-    pub fn unreliable_between(&self, start: f64, end: f64) -> impl Iterator<Item = &UnreliableSpan> {
+    pub fn unreliable_between(
+        &self,
+        start: f64,
+        end: f64,
+    ) -> impl Iterator<Item = &UnreliableSpan> {
         self.unreliable.iter().filter(move |span| span.end > start && span.start < end)
     }
 }

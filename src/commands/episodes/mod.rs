@@ -1,11 +1,11 @@
-pub mod sync;
-pub mod list;
-pub mod get;
-pub mod download;
 pub mod adopt;
 pub mod analyze;
-pub mod inspect;
 pub mod clip;
+pub mod download;
+pub mod get;
+pub mod inspect;
+pub mod list;
+pub mod sync;
 
 use clap::Subcommand;
 

@@ -21,7 +21,8 @@ const LONGEST_PAUSE_SECONDS: f64 = 1.0;
 
 /// Where the opening cut ends.
 pub fn opening_end(theme: &JingleMatch, first_in_supercut: bool, envelope: &Envelope) -> f64 {
-    let Some(talk) = envelope.first_above(theme.end, theme.end + SPEECH_WITHIN_SECONDS, SPEECH_DB) else {
+    let Some(talk) = envelope.first_above(theme.end, theme.end + SPEECH_WITHIN_SECONDS, SPEECH_DB)
+    else {
         return theme.end;
     };
     if first_in_supercut {
@@ -41,7 +42,9 @@ pub fn with_opening(cuts: Vec<Cut>, theme: &JingleMatch, end: f64) -> Vec<Cut> {
         fade_out: None,
         fade_in: None,
     };
-    std::iter::once(opening).chain(cuts.into_iter().filter(|cut| cut.start.seconds() >= theme.end)).collect()
+    std::iter::once(opening)
+        .chain(cuts.into_iter().filter(|cut| cut.start.seconds() >= theme.end))
+        .collect()
 }
 
 #[cfg(test)]
@@ -77,10 +80,17 @@ mod tests {
 
     #[test]
     fn the_opening_replaces_label_cuts_that_began_inside_the_theme() {
-        let cut = |start: f64, end: f64| Cut { start: Time(start), end: Some(Time(end)), reason: String::new(), fade_out: None, fade_in: None };
+        let cut = |start: f64, end: f64| Cut {
+            start: Time(start),
+            end: Some(Time(end)),
+            reason: String::new(),
+            fade_out: None,
+            fade_in: None,
+        };
         // The labels' preamble ran past the theme into the hosts' welcome; a classified follows.
         let cuts = with_opening(vec![cut(0.0, 58.0), cut(1500.0, 1560.0)], &theme(43.8), 43.8);
-        let spans: Vec<(f64, f64)> = cuts.iter().map(|cut| (cut.start.seconds(), cut.end.unwrap().seconds())).collect();
+        let spans: Vec<(f64, f64)> =
+            cuts.iter().map(|cut| (cut.start.seconds(), cut.end.unwrap().seconds())).collect();
         assert_eq!(spans, vec![(0.0, 43.8), (1500.0, 1560.0)]);
     }
 }

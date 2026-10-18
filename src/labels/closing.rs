@@ -18,7 +18,8 @@ pub fn with_outro(cuts: Vec<Cut>, outro: &JingleMatch) -> Vec<Cut> {
         fade_out: None,
         fade_in: None,
     };
-    let before = cuts.into_iter().filter(|cut| cut.end.is_some_and(|end| end.seconds() <= outro.start));
+    let before =
+        cuts.into_iter().filter(|cut| cut.end.is_some_and(|end| end.seconds() <= outro.start));
     before.chain(std::iter::once(ending)).collect()
 }
 
@@ -42,7 +43,13 @@ mod tests {
     use super::*;
 
     fn cut(start: f64, end: Option<f64>) -> Cut {
-        Cut { start: Time(start), end: end.map(Time), reason: String::new(), fade_out: Some(0.25), fade_in: Some(0.25) }
+        Cut {
+            start: Time(start),
+            end: end.map(Time),
+            reason: String::new(),
+            fade_out: Some(0.25),
+            fade_in: Some(0.25),
+        }
     }
 
     fn spans(cuts: &[Cut]) -> Vec<(f64, Option<f64>)> {
@@ -51,16 +58,30 @@ mod tests {
 
     #[test]
     fn the_outro_replaces_the_labels_reading_of_the_credits() {
-        let outro = JingleMatch { recording: "/outros/show.flac".into(), start: 5532.3, end: 5534.4, score: 0.99 };
+        let outro = JingleMatch {
+            recording: "/outros/show.flac".into(),
+            start: 5532.3,
+            end: 5534.4,
+            score: 0.99,
+        };
         // An ad, then credits the labels started inside the goodbye and stopped short of the end.
         let ending = with_outro(vec![cut(1760.0, Some(1830.0)), cut(5530.5, Some(5557.0))], &outro);
         assert_eq!(spans(&ending), vec![(1760.0, Some(1830.0)), (5532.3, None)]);
-        assert_eq!((ending[1].fade_out, ending[1].fade_in), (None, None), "the outro starts in the hush after the goodbye");
+        assert_eq!(
+            (ending[1].fade_out, ending[1].fade_in),
+            (None, None),
+            "the outro starts in the hush after the goodbye"
+        );
     }
 
     #[test]
     fn cuts_give_way_to_the_bumper_that_closes_the_episode() {
-        let bumper = JingleMatch { recording: "/bumpers/show.flac".into(), start: 4230.8, end: 4233.5, score: 1.0 };
+        let bumper = JingleMatch {
+            recording: "/bumpers/show.flac".into(),
+            start: 4230.8,
+            end: 4233.5,
+            score: 1.0,
+        };
         // An ad mid-episode, the closing labeled as credits and cut to the end of the file.
         let kept = keeping_bumper(vec![cut(1200.0, Some(1260.0)), cut(4220.0, None)], &bumper);
         assert_eq!(spans(&kept), vec![(1200.0, Some(1260.0)), (4220.0, Some(4230.8))]);

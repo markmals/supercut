@@ -85,7 +85,8 @@ pub fn review(context: &Context, plan: &Plan) -> anyhow::Result<Review> {
     let mut episodes = Vec::new();
     for (span, episode) in timeline.episodes.iter().zip(&resolved.input.episodes) {
         let transcript = resolved.transcript(&episode.id)?;
-        let interstitial_after = episode.interstitial_after && resolved.input.interstitial.is_some();
+        let interstitial_after =
+            episode.interstitial_after && resolved.input.interstitial.is_some();
         episodes.push(episode_review(span, episode, interstitial_after, transcript.as_ref()));
     }
     let source: f64 = resolved.input.episodes.iter().map(|episode| episode.duration).sum();
@@ -134,7 +135,12 @@ fn episode_review(
     }
 }
 
-fn cut_review(index: usize, cut: &Cut, duration: f64, transcript: Option<&Transcript>) -> CutReview {
+fn cut_review(
+    index: usize,
+    cut: &Cut,
+    duration: f64,
+    transcript: Option<&Transcript>,
+) -> CutReview {
     let start = cut.start.seconds();
     let end = cut.end.map_or(duration, Time::seconds);
     CutReview {
@@ -151,7 +157,8 @@ fn cut_review(index: usize, cut: &Cut, duration: f64, transcript: Option<&Transc
 
 fn cut_context(transcript: &Transcript, start: f64, end: f64) -> CutContext {
     let before = words_before(transcript, start);
-    let inside: Vec<&str> = transcript.words_between(start, end).map(|word| word.text.as_str()).collect();
+    let inside: Vec<&str> =
+        transcript.words_between(start, end).map(|word| word.text.as_str()).collect();
     let after: Vec<&str> = transcript
         .words()
         .filter(|word| word.start >= end)
@@ -184,7 +191,8 @@ fn words_before(transcript: &Transcript, start: f64) -> Vec<&str> {
 
 /// Show notes are paragraphs; a chapter line wants the first sentence of them.
 fn summarize(description: &str) -> String {
-    let mut text: String = description.split_whitespace().take(SUMMARY_WORDS).collect::<Vec<_>>().join(" ");
+    let mut text: String =
+        description.split_whitespace().take(SUMMARY_WORDS).collect::<Vec<_>>().join(" ");
     if text.len() < description.len() {
         text.push('…');
     }

@@ -4,7 +4,13 @@ use crate::render::piece::Source;
 use crate::timecode::Time;
 
 fn cut(start: f64, end: f64) -> Cut {
-    Cut { start: Time(start), end: Some(Time(end)), reason: "advert".into(), fade_out: None, fade_in: None }
+    Cut {
+        start: Time(start),
+        end: Some(Time(end)),
+        reason: "advert".into(),
+        fade_out: None,
+        fade_in: None,
+    }
 }
 
 fn chapter(start: f64, title: &str) -> Chapter {
@@ -34,9 +40,12 @@ fn ranges(timeline: &super::Timeline) -> Vec<(String, f64, f64, f64)> {
         .pieces
         .iter()
         .map(|piece| match &piece.source {
-            Source::File { path, start, end } => {
-                (path.file_name().unwrap().to_string_lossy().into_owned(), *start, *end, piece.output_start)
-            }
+            Source::File { path, start, end } => (
+                path.file_name().unwrap().to_string_lossy().into_owned(),
+                *start,
+                *end,
+                piece.output_start,
+            ),
             Source::Beep => ("beep".to_string(), 0.0, 0.0, piece.output_start),
         })
         .collect()
@@ -44,7 +53,10 @@ fn ranges(timeline: &super::Timeline) -> Vec<(String, f64, f64, f64)> {
 
 #[test]
 fn keeps_the_audio_between_cuts_and_stacks_it_without_gaps() {
-    let timeline = build(&input(vec![episode("a", 100.0, vec![cut(20.0, 30.0), cut(60.0, 70.0)], vec![])], None));
+    let timeline = build(&input(
+        vec![episode("a", 100.0, vec![cut(20.0, 30.0), cut(60.0, 70.0)], vec![])],
+        None,
+    ));
 
     assert_eq!(
         ranges(&timeline),
@@ -62,8 +74,12 @@ fn keeps_the_audio_between_cuts_and_stacks_it_without_gaps() {
 fn only_cut_edges_fade() {
     let timeline = build(&input(vec![episode("a", 100.0, vec![cut(20.0, 30.0)], vec![])], None));
 
-    let fades: Vec<(f64, f64)> = timeline.pieces.iter().map(|piece| (piece.fade_in, piece.fade_out)).collect();
-    assert_eq!(fades, vec![(0.0, crate::plan::EDGE_FADE_SECONDS), (crate::plan::EDGE_FADE_SECONDS, 0.0)]);
+    let fades: Vec<(f64, f64)> =
+        timeline.pieces.iter().map(|piece| (piece.fade_in, piece.fade_out)).collect();
+    assert_eq!(
+        fades,
+        vec![(0.0, crate::plan::EDGE_FADE_SECONDS), (crate::plan::EDGE_FADE_SECONDS, 0.0)]
+    );
 }
 
 #[test]
@@ -72,7 +88,13 @@ fn a_cut_without_an_end_runs_to_the_end_of_the_episode() {
         vec![episode(
             "a",
             100.0,
-            vec![Cut { start: Time(90.0), end: None, reason: "outro".into(), fade_out: Some(2.0), fade_in: None }],
+            vec![Cut {
+                start: Time(90.0),
+                end: None,
+                reason: "outro".into(),
+                fade_out: Some(2.0),
+                fade_in: None,
+            }],
             vec![],
         )],
         None,
@@ -85,7 +107,8 @@ fn a_cut_without_an_end_runs_to_the_end_of_the_episode() {
 #[test]
 fn the_interstitial_follows_every_episode_but_one_that_closes_with_its_own_bumper() {
     let clip = Clip { audio: "/audio/sting.mp3".into(), duration: 10.0, integrated_lufs: -20.0 };
-    let bonus = InputEpisode { interstitial_after: false, ..episode("bonus", 30.0, vec![], vec![]) };
+    let bonus =
+        InputEpisode { interstitial_after: false, ..episode("bonus", 30.0, vec![], vec![]) };
     let timeline = build(&input(
         vec![episode("a", 100.0, vec![], vec![]), bonus, episode("b", 50.0, vec![], vec![])],
         Some(clip),
@@ -142,7 +165,8 @@ fn a_chapter_with_no_audio_left_after_it_is_dropped_with_a_warning() {
     let chapters = vec![chapter(0.0, "Intro"), chapter(95.0, "Outro")];
     let timeline = build(&input(vec![episode("a", 100.0, vec![cut(90.0, 100.0)], chapters)], None));
 
-    let titles: Vec<&str> = timeline.episodes[0].chapters.iter().map(|c| c.title.as_str()).collect();
+    let titles: Vec<&str> =
+        timeline.episodes[0].chapters.iter().map(|c| c.title.as_str()).collect();
     assert_eq!(titles, vec!["Intro"]);
     assert_eq!(timeline.warnings.len(), 1);
     assert!(timeline.warnings[0].contains("Outro"), "{}", timeline.warnings[0]);
@@ -150,7 +174,8 @@ fn a_chapter_with_no_audio_left_after_it_is_dropped_with_a_warning() {
 
 #[test]
 fn a_long_lead_in_is_labelled_with_the_episode() {
-    let timeline = build(&input(vec![episode("a", 100.0, vec![], vec![chapter(45.0, "Guest")])], None));
+    let timeline =
+        build(&input(vec![episode("a", 100.0, vec![], vec![chapter(45.0, "Guest")])], None));
 
     let spans: Vec<(f64, f64, &str)> =
         timeline.episodes[0].chapters.iter().map(|c| (c.start, c.end, c.title.as_str())).collect();
@@ -159,10 +184,15 @@ fn a_long_lead_in_is_labelled_with_the_episode() {
 
 #[test]
 fn a_short_lead_in_joins_the_first_chapter_which_carries_the_show_notes() {
-    let timeline = build(&input(vec![episode("a", 100.0, vec![], vec![chapter(10.0, "Guest")])], None));
+    let timeline =
+        build(&input(vec![episode("a", 100.0, vec![], vec![chapter(10.0, "Guest")])], None));
 
     let chapters = &timeline.episodes[0].chapters;
-    let spans: Vec<(f64, f64, &str)> = chapters.iter().map(|c| (c.start, c.end, c.title.as_str())).collect();
+    let spans: Vec<(f64, f64, &str)> =
+        chapters.iter().map(|c| (c.start, c.end, c.title.as_str())).collect();
     assert_eq!(spans, vec![(0.0, 100.0, "Guest")]);
-    assert!(chapters[0].description.is_some(), "the episode's first chapter carries its description");
+    assert!(
+        chapters[0].description.is_some(),
+        "the episode's first chapter carries its description"
+    );
 }

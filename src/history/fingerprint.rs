@@ -21,7 +21,12 @@ pub fn item_seconds() -> f64 {
 pub fn cached(audio: &Path, cache: &Path) -> anyhow::Result<Vec<u32>> {
     if cache.exists() {
         let bytes = std::fs::read(cache).with_context(|| format!("reading {}", cache.display()))?;
-        return Ok(bytes.as_chunks::<4>().0.iter().map(|chunk| u32::from_le_bytes(*chunk)).collect());
+        return Ok(bytes
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|chunk| u32::from_le_bytes(*chunk))
+            .collect());
     }
     eprintln!("fingerprinting {}", audio.display());
     let fingerprint = compute(audio)?;
@@ -43,7 +48,11 @@ fn compute(audio: &Path) -> anyhow::Result<Vec<u32>> {
             break;
         }
         pcm.clear();
-        pcm.extend(samples[..count].iter().map(|sample| (sample.clamp(-1.0, 1.0) * f32::from(i16::MAX)) as i16));
+        pcm.extend(
+            samples[..count]
+                .iter()
+                .map(|sample| (sample.clamp(-1.0, 1.0) * f32::from(i16::MAX)) as i16),
+        );
         printer.consume(&pcm);
     }
     stream.finish()?;

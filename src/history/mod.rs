@@ -39,8 +39,14 @@ pub fn plan_path(show: &ShowLibrary, name: &str) -> PathBuf {
 
 /// Matches `export` against `candidates`, refines every match to the sample, and saves the
 /// recovery and the plan that reproduces the export.
-pub fn recover(show: &ShowLibrary, index: &EpisodeIndex, export: &Path, candidates: &[&Episode]) -> anyhow::Result<Saved> {
-    let name = export.file_stem().context("export has no file name")?.to_string_lossy().into_owned();
+pub fn recover(
+    show: &ShowLibrary,
+    index: &EpisodeIndex,
+    export: &Path,
+    candidates: &[&Episode],
+) -> anyhow::Result<Saved> {
+    let name =
+        export.file_stem().context("export has no file name")?.to_string_lossy().into_owned();
     let export_fingerprint = show.history_dir().join(format!("{name}.fp"));
     let coarse = coarse_alignment(show, export, &export_fingerprint, candidates)?;
     let item = fingerprint::item_seconds();
@@ -57,7 +63,12 @@ pub fn recover(show: &ShowLibrary, index: &EpisodeIndex, export: &Path, candidat
         refined.push(pieces::refine_piece(export, &source, &estimate)?);
     }
     let duration = crate::media::probe(export)?.duration;
-    let recovery = recover::classify(&name, &export.display().to_string(), duration, merge_split_pieces(refined));
+    let recovery = recover::classify(
+        &name,
+        &export.display().to_string(),
+        duration,
+        merge_split_pieces(refined),
+    );
     let mut durations = BTreeMap::new();
     for piece in &recovery.pieces {
         if !durations.contains_key(&piece.episode) {
@@ -66,14 +77,21 @@ pub fn recover(show: &ShowLibrary, index: &EpisodeIndex, export: &Path, candidat
         }
     }
     let plan = recover::recovered_plan(&show.slug, &recovery, &durations);
-    let saved = Saved { recovery_path: recovery_path(show, &name), plan_path: plan_path(show, &name), recovery };
+    let saved = Saved {
+        recovery_path: recovery_path(show, &name),
+        plan_path: plan_path(show, &name),
+        recovery,
+    };
     crate::library::write_json_atomically(&saved.recovery_path, &saved.recovery)?;
     crate::library::write_json_atomically(&saved.plan_path, &plan)?;
     Ok(saved)
 }
 
 pub fn load(show: &ShowLibrary, name: &str) -> anyhow::Result<(Recovery, Plan)> {
-    Ok((crate::library::read_json(&recovery_path(show, name))?, Plan::load(&plan_path(show, name))?))
+    Ok((
+        crate::library::read_json(&recovery_path(show, name))?,
+        Plan::load(&plan_path(show, name))?,
+    ))
 }
 
 /// A stretch of the export that plays a stretch of one source episode, in fingerprint items.
@@ -84,14 +102,26 @@ struct CoarsePiece {
 
 /// Matches the export against every candidate episode and keeps, for each export stretch, the
 /// best-matching source.
-fn coarse_alignment(show: &ShowLibrary, export: &Path, export_cache: &Path, episodes: &[&Episode]) -> anyhow::Result<Vec<CoarsePiece>> {
+fn coarse_alignment(
+    show: &ShowLibrary,
+    export: &Path,
+    export_cache: &Path,
+    episodes: &[&Episode],
+) -> anyhow::Result<Vec<CoarsePiece>> {
     let export_fp = fingerprint::cached(export, export_cache)?;
     let mut runs = Vec::new();
     for episode in episodes {
-        let source_fp = fingerprint::cached(&show.audio_path(episode)?, &show.fingerprint_path(&episode.id))?;
-        runs.extend(matcher::find_runs(&source_fp, &export_fp).into_iter().map(|run| (episode.id.clone(), run)));
+        let source_fp =
+            fingerprint::cached(&show.audio_path(episode)?, &show.fingerprint_path(&episode.id))?;
+        runs.extend(
+            matcher::find_runs(&source_fp, &export_fp)
+                .into_iter()
+                .map(|run| (episode.id.clone(), run)),
+        );
     }
-    let pieces = matcher::best_non_overlapping(runs).into_iter().map(|(episode, run)| CoarsePiece { episode, run });
+    let pieces = matcher::best_non_overlapping(runs)
+        .into_iter()
+        .map(|(episode, run)| CoarsePiece { episode, run });
     Ok(pieces.collect())
 }
 

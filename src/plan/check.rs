@@ -1,8 +1,8 @@
 use serde::Serialize;
 
 use crate::commands::Context;
-use crate::library::{EpisodeIndex, ShowLibrary};
 use crate::error::CliError;
+use crate::library::{EpisodeIndex, ShowLibrary};
 use crate::plan::{Cut, EDGE_FADE_SECONDS, Plan, lint, resolve, timeline};
 use crate::timecode::Time;
 
@@ -32,14 +32,26 @@ pub fn check(context: &Context, plan: &Plan) -> anyhow::Result<Report> {
     let missing = preflight(context, plan);
     if !missing.is_empty() {
         let episodes = Vec::new();
-        return Ok(Report { ok: false, errors: missing, warnings: Vec::new(), output_duration: Time(0.0), episodes });
+        return Ok(Report {
+            ok: false,
+            errors: missing,
+            warnings: Vec::new(),
+            output_duration: Time(0.0),
+            episodes,
+        });
     }
 
     let resolved = resolve::resolve(context, plan)?;
     let errors = cut_errors(&resolved);
     // A timeline only means something for cuts that hold together.
     if !errors.is_empty() {
-        return Ok(Report { ok: false, errors, warnings: Vec::new(), output_duration: Time(0.0), episodes: Vec::new() });
+        return Ok(Report {
+            ok: false,
+            errors,
+            warnings: Vec::new(),
+            output_duration: Time(0.0),
+            episodes: Vec::new(),
+        });
     }
 
     let timeline = timeline::build(&resolved.input);
@@ -54,12 +66,23 @@ pub fn check(context: &Context, plan: &Plan) -> anyhow::Result<Report> {
             cuts: span.cuts,
         })
         .collect();
-    Ok(Report { ok: errors.is_empty(), errors, warnings, output_duration: Time(timeline.duration()), episodes })
+    Ok(Report {
+        ok: errors.is_empty(),
+        errors,
+        warnings,
+        output_duration: Time(timeline.duration()),
+        episodes,
+    })
 }
 
 /// Every episode's cut errors.
 fn cut_errors(resolved: &resolve::Resolved) -> Vec<String> {
-    resolved.input.episodes.iter().flat_map(|episode| episode_errors(&episode.id, &episode.cuts, episode.duration)).collect()
+    resolved
+        .input
+        .episodes
+        .iter()
+        .flat_map(|episode| episode_errors(&episode.id, &episode.cuts, episode.duration))
+        .collect()
 }
 
 /// Refuses to work from a plan whose cuts don't hold together, so render and preview never
@@ -89,8 +112,11 @@ fn preflight(context: &Context, plan: &Plan) -> Vec<String> {
         Err(error) => return vec![format!("{error:#}")],
     };
 
-    let mut errors: Vec<String> =
-        plan.episodes.iter().filter_map(|episode| audio_error(&library, &index, &episode.id)).collect();
+    let mut errors: Vec<String> = plan
+        .episodes
+        .iter()
+        .filter_map(|episode| audio_error(&library, &index, &episode.id))
+        .collect();
     if let Some(path) = resolve::interstitial_path(show, plan)
         && !path.exists()
     {
@@ -120,7 +146,9 @@ pub fn episode_errors(id: &str, cuts: &[Cut], duration: f64) -> Vec<String> {
     }
     let removed: f64 = cuts.iter().map(|cut| cut_end(cut, duration) - cut.start.seconds()).sum();
     if duration - removed < MIN_KEPT_SECONDS {
-        return vec![format!("{id}: the cuts remove the whole episode; take it out of the plan instead")];
+        return vec![format!(
+            "{id}: the cuts remove the whole episode; take it out of the plan instead"
+        )];
     }
     fade_errors(id, cuts, duration)
 }
@@ -132,13 +160,23 @@ fn range_errors(id: &str, cuts: &[Cut], duration: f64) -> Vec<String> {
         let label = format!("{id} cut {} at {}", index + 1, cut.start);
         let (start, end) = (cut.start.seconds(), cut_end(cut, duration));
         if start < 0.0 || start >= duration {
-            errors.push(format!("{label}: starts outside the episode, which runs 0:00.000 to {}", Time(duration)));
+            errors.push(format!(
+                "{label}: starts outside the episode, which runs 0:00.000 to {}",
+                Time(duration)
+            ));
         } else if end > duration {
-            errors.push(format!("{label}: ends at {}, past the end of the episode ({})", Time(end), Time(duration)));
+            errors.push(format!(
+                "{label}: ends at {}, past the end of the episode ({})",
+                Time(end),
+                Time(duration)
+            ));
         } else if end <= start {
             errors.push(format!("{label}: ends at {}, which is not after it starts", Time(end)));
         } else if start < previous_end {
-            errors.push(format!("{label}: starts before the cut above it ends ({})", Time(previous_end)));
+            errors.push(format!(
+                "{label}: starts before the cut above it ends ({})",
+                Time(previous_end)
+            ));
         }
         previous_end = previous_end.max(end);
     }
@@ -150,8 +188,10 @@ fn fade_errors(id: &str, cuts: &[Cut], duration: f64) -> Vec<String> {
     for (index, cut) in cuts.iter().enumerate() {
         let label = format!("{id} cut {} at {}", index + 1, cut.start);
         let previous = index.checked_sub(1).map(|previous| &cuts[previous]);
-        let before = cut.start.seconds() - previous.map_or(0.0, |previous| cut_end(previous, duration));
-        let after = cuts.get(index + 1).map_or(duration, |next| next.start.seconds()) - cut_end(cut, duration);
+        let before =
+            cut.start.seconds() - previous.map_or(0.0, |previous| cut_end(previous, duration));
+        let after = cuts.get(index + 1).map_or(duration, |next| next.start.seconds())
+            - cut_end(cut, duration);
         errors.extend(fade_error(&label, "fade_out", cut.fade_out, before));
         errors.extend(fade_error(&label, "fade_in", cut.fade_in, after));
         // The audio kept between two cuts fades in from the first and out into the second; an
@@ -176,7 +216,9 @@ fn fade_error(label: &str, name: &str, fade: Option<f64>, kept: f64) -> Option<S
     if fade < 0.0 {
         return Some(format!("{label}: {name} of {fade} s is negative"));
     }
-    (fade > kept).then(|| format!("{label}: {name} of {fade} s is longer than the {kept:.3} s of audio it fades"))
+    (fade > kept).then(|| {
+        format!("{label}: {name} of {fade} s is longer than the {kept:.3} s of audio it fades")
+    })
 }
 
 fn cut_end(cut: &Cut, duration: f64) -> f64 {
@@ -190,7 +232,13 @@ mod tests {
     use crate::timecode::Time;
 
     fn cut(start: f64, end: f64) -> Cut {
-        Cut { start: Time(start), end: Some(Time(end)), reason: "advert".into(), fade_out: None, fade_in: None }
+        Cut {
+            start: Time(start),
+            end: Some(Time(end)),
+            reason: "advert".into(),
+            fade_out: None,
+            fade_in: None,
+        }
     }
 
     #[test]
@@ -230,7 +278,11 @@ mod tests {
         second.fade_in = Some(0.5);
         let errors = episode_errors("a", &[first, second], 100.0);
         assert_eq!(errors.len(), 1);
-        assert!(errors[0].contains("fade_out of 12 s is longer than the 10.000 s"), "{}", errors[0]);
+        assert!(
+            errors[0].contains("fade_out of 12 s is longer than the 10.000 s"),
+            "{}",
+            errors[0]
+        );
     }
 
     #[test]

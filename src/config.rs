@@ -171,7 +171,8 @@ pub enum CutEnd {
 
 impl Config {
     pub fn default_path() -> anyhow::Result<PathBuf> {
-        let base = dirs::config_dir().ok_or_else(|| anyhow!("no config directory on this platform"))?;
+        let base =
+            dirs::config_dir().ok_or_else(|| anyhow!("no config directory on this platform"))?;
         Ok(base.join(APP_DIR).join(CONFIG_FILE))
     }
 
@@ -179,7 +180,9 @@ impl Config {
     pub fn load(path: &Path) -> anyhow::Result<Self> {
         let text = match std::fs::read_to_string(path) {
             Ok(text) => text,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Self::default()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Self::default());
+            }
             Err(error) => return Err(error).with_context(|| format!("reading {}", path.display())),
         };
         let mut config = file::parse(&text).map_err(|problem| {
@@ -194,13 +197,16 @@ impl Config {
         if let Some(dir) = &self.library_dir {
             return Ok(dir.clone());
         }
-        let base = dirs::data_local_dir().ok_or_else(|| anyhow!("no data directory on this platform"))?;
+        let base =
+            dirs::data_local_dir().ok_or_else(|| anyhow!("no data directory on this platform"))?;
         Ok(base.join(APP_DIR).join("library"))
     }
 
     pub fn output_dir(&self) -> anyhow::Result<&Path> {
         self.output_dir.as_deref().ok_or_else(|| {
-            CliError::precondition("`output_dir` is not set in the config file").hint("supercut config get").into()
+            CliError::precondition("`output_dir` is not set in the config file")
+                .hint("supercut config get")
+                .into()
         })
     }
 
@@ -218,13 +224,17 @@ impl Config {
         for path in [&mut self.library_dir, &mut self.output_dir, &mut self.sideload_dir] {
             expand_home(path);
         }
-        if let Some(model) = self.transcription.model.as_mut().filter(|model| model.starts_with('~')) {
+        if let Some(model) =
+            self.transcription.model.as_mut().filter(|model| model.starts_with('~'))
+        {
             *model = home_expanded(Path::new(model)).to_string_lossy().into_owned();
         }
         for show in self.shows.values_mut() {
             expand_home(&mut show.artwork);
             expand_home(&mut show.interstitial);
-            for recording in show.themes.iter_mut().chain(show.outros.iter_mut()).chain(show.bumpers.iter_mut()) {
+            for recording in
+                show.themes.iter_mut().chain(show.outros.iter_mut()).chain(show.bumpers.iter_mut())
+            {
                 *recording = home_expanded(recording);
             }
         }

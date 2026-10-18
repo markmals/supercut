@@ -96,9 +96,9 @@ impl Labeler {
         let mut done = 0;
         while let Some(joined) = tasks.join_next().await {
             let (index, result) = joined?;
-            let raw = result.map_err(remote_failure).with_context(|| {
-                format!("asking Jev about the window at {}", positions[index])
-            })?;
+            let raw = result
+                .map_err(remote_failure)
+                .with_context(|| format!("asking Jev about the window at {}", positions[index]))?;
             answers[index] = Some(answer(&raw)?);
             done += 1;
             progress(done);
@@ -138,7 +138,8 @@ pub fn question(show: &str, kinds: &[SegmentKind]) -> anyhow::Result<BuiltQuesti
 
 /// What one request costs, near enough to decide on: four characters to the token.
 pub fn estimated_tokens(question: &BuiltQuestion, state: &WindowState<'_>) -> anyhow::Result<u64> {
-    let bytes = serde_json::to_string(state)?.len() + serde_json::to_string(&question.question)?.len();
+    let bytes =
+        serde_json::to_string(state)?.len() + serde_json::to_string(&question.question)?.len();
     Ok(bytes as u64 / 4)
 }
 
@@ -180,8 +181,13 @@ fn api_key(settings: &JevSettings) -> anyhow::Result<String> {
         .with_context(|| format!("running `{program}` for the Jev API key"))?;
     let key = String::from_utf8_lossy(&output.stdout).trim().to_owned();
     if !output.status.success() || key.is_empty() {
-        let message = format!("`{program}` could not read the Jev API key: {}", String::from_utf8_lossy(&output.stderr).trim());
-        let hint = format!("unlock the password manager and retry, or set {API_KEY_VARIABLE} for this run");
+        let message = format!(
+            "`{program}` could not read the Jev API key: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+        let hint = format!(
+            "unlock the password manager and retry, or set {API_KEY_VARIABLE} for this run"
+        );
         return Err(CliError::new(ErrorCode::Unauthenticated, message).hint(hint).into());
     }
     Ok(key)
@@ -197,7 +203,9 @@ mod tests {
 
     #[test]
     fn an_unpaid_account_is_not_worth_retrying_but_a_server_error_is() {
-        let unpaid = JevError::Transport("unexpected status 402 Payment Required: {\"error\":\"no credit\"}".into());
+        let unpaid = JevError::Transport(
+            "unexpected status 402 Payment Required: {\"error\":\"no credit\"}".into(),
+        );
         let broken = JevError::Transport("unexpected status 503 Service Unavailable: ".into());
         assert_eq!(code_of(unpaid), ErrorCode::FailedPrecondition);
         assert!(!ErrorCode::FailedPrecondition.retryable());

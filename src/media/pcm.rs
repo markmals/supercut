@@ -48,7 +48,8 @@ impl PcmStream {
     pub fn spawn(mut command: Command) -> anyhow::Result<Self> {
         command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
         let mut child = command.spawn().context("running ffmpeg; is it installed and on PATH?")?;
-        let stdout = BufReader::with_capacity(1 << 16, child.stdout.take().context("ffmpeg stdout")?);
+        let stdout =
+            BufReader::with_capacity(1 << 16, child.stdout.take().context("ffmpeg stdout")?);
         let mut stderr_pipe = child.stderr.take().context("ffmpeg stderr")?;
         let stderr = std::thread::spawn(move || {
             let mut text = String::new();
@@ -63,7 +64,8 @@ impl PcmStream {
         self.bytes.resize(samples.len() * 4, 0);
         let mut filled = 0;
         while filled < self.bytes.len() {
-            let count = self.stdout.read(&mut self.bytes[filled..]).context("reading ffmpeg output")?;
+            let count =
+                self.stdout.read(&mut self.bytes[filled..]).context("reading ffmpeg output")?;
             if count == 0 {
                 break;
             }
@@ -79,7 +81,8 @@ impl PcmStream {
     /// Waits for ffmpeg, turns a failed decode into an error, and returns what ffmpeg logged.
     pub fn finish(mut self) -> anyhow::Result<String> {
         let status = self.child.wait().context("waiting for ffmpeg")?;
-        let stderr = self.stderr.take().map(|thread| thread.join().unwrap_or_default()).unwrap_or_default();
+        let stderr =
+            self.stderr.take().map(|thread| thread.join().unwrap_or_default()).unwrap_or_default();
         if !status.success() {
             bail!("ffmpeg failed to decode ({status}): {}", stderr.trim());
         }
@@ -98,8 +101,15 @@ impl Drop for PcmStream {
 }
 
 /// Decodes `duration` seconds from `start` into memory: for short windows only.
-pub fn decode_window(path: &Path, start: f64, duration: f64, sample_rate: u32, channels: u32) -> anyhow::Result<Vec<f32>> {
-    let mut stream = PcmStream::open(path, sample_rate, channels, Some(start.max(0.0)), Some(duration))?;
+pub fn decode_window(
+    path: &Path,
+    start: f64,
+    duration: f64,
+    sample_rate: u32,
+    channels: u32,
+) -> anyhow::Result<Vec<f32>> {
+    let mut stream =
+        PcmStream::open(path, sample_rate, channels, Some(start.max(0.0)), Some(duration))?;
     let mut samples = Vec::new();
     let mut chunk = vec![0.0f32; 1 << 15];
     loop {

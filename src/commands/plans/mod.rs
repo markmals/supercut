@@ -1,9 +1,9 @@
 pub mod compare;
 pub mod draft;
-pub mod validate;
-pub mod review;
 pub mod preview;
 pub mod render;
+pub mod review;
+pub mod validate;
 
 use clap::Subcommand;
 

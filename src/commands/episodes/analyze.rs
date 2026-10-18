@@ -96,7 +96,12 @@ fn found(
 impl From<JingleMatch> for Found {
     fn from(found: JingleMatch) -> Self {
         Self {
-            recording: found.recording.file_name().unwrap_or_default().to_string_lossy().into_owned(),
+            recording: found
+                .recording
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned(),
             start: Time(found.start),
             end: Time(found.end),
             score: (found.score * 1000.0).round() / 1000.0,

@@ -64,7 +64,8 @@ pub fn classify(name: &str, export: &str, duration: f64, pieces: Vec<Piece>) -> 
     for (piece, is_sting) in pieces.into_iter().zip(sting) {
         let gap = Span { export_start: cursor, export_end: piece.export_start };
         cursor = cursor.max(piece.export_end);
-        let between_episodes = previous_episode.as_deref() != Some(piece.episode.as_str()) || is_sting;
+        let between_episodes =
+            previous_episode.as_deref() != Some(piece.episode.as_str()) || is_sting;
         if gap.export_end - gap.export_start >= MIN_GAP_SECONDS {
             if between_episodes {
                 extend(&mut pending, gap.export_start, gap.export_end, None);
@@ -105,11 +106,18 @@ fn close(recovery: &mut Recovery, interstitial: Interstitial) {
         Time(seconds),
         Time(interstitial.export_start)
     ));
-    recovery.unmatched.push(Span { export_start: interstitial.export_start, export_end: interstitial.export_end });
+    recovery.unmatched.push(Span {
+        export_start: interstitial.export_start,
+        export_end: interstitial.export_end,
+    });
 }
 
 fn extend(pending: &mut Option<Interstitial>, start: f64, end: f64, source: Option<Piece>) {
-    let interstitial = pending.get_or_insert(Interstitial { export_start: start, export_end: end, sources: Vec::new() });
+    let interstitial = pending.get_or_insert(Interstitial {
+        export_start: start,
+        export_end: end,
+        sources: Vec::new(),
+    });
     interstitial.export_start = interstitial.export_start.min(start);
     interstitial.export_end = interstitial.export_end.max(end);
     interstitial.sources.extend(source);
@@ -130,7 +138,8 @@ fn is_sting(pieces: &[Piece], index: usize) -> bool {
             && piece.source_start < other.source_end
     });
     let long_episode = |other: &&Piece| other.duration() >= STING_SECONDS;
-    let before = pieces[..index].iter().rev().find(long_episode).map(|other| other.episode.as_str());
+    let before =
+        pieces[..index].iter().rev().find(long_episode).map(|other| other.episode.as_str());
     let after = pieces[index + 1..].iter().find(long_episode).map(|other| other.episode.as_str());
     let isolated = before != Some(piece.episode.as_str()) && after != Some(piece.episode.as_str());
     reused || isolated
@@ -148,7 +157,8 @@ pub fn recovered_plan(show: &str, recovery: &Recovery, durations: &BTreeMap<Stri
     let episodes = order
         .into_iter()
         .map(|id| {
-            let mut kept: Vec<&Piece> = recovery.pieces.iter().filter(|piece| piece.episode == id).collect();
+            let mut kept: Vec<&Piece> =
+                recovery.pieces.iter().filter(|piece| piece.episode == id).collect();
             kept.sort_by(|a, b| a.source_start.total_cmp(&b.source_start));
             let duration = durations.get(id).copied().unwrap_or(f64::INFINITY);
             PlanEpisode {
@@ -171,7 +181,12 @@ pub fn recovered_plan(show: &str, recovery: &Recovery, durations: &BTreeMap<Stri
 
 /// Whether an interstitial plays between the episode's last audio and whatever comes next.
 fn interstitial_follows(recovery: &Recovery, id: &str) -> bool {
-    let ends = recovery.pieces.iter().filter(|piece| piece.episode == id).map(|piece| piece.export_end).fold(0.0, f64::max);
+    let ends = recovery
+        .pieces
+        .iter()
+        .filter(|piece| piece.episode == id)
+        .map(|piece| piece.export_end)
+        .fold(0.0, f64::max);
     let next = recovery
         .pieces
         .iter()
@@ -201,7 +216,13 @@ fn cuts_between(kept: &[&Piece], duration: f64, name: &str) -> Vec<Cut> {
     if let Some(last) = previous
         && duration - last.source_end > MIN_GAP_SECONDS
     {
-        cuts.push(Cut { start: Time(last.source_end), end: None, reason, fade_out: deliberate(last.fade_out), fade_in: None });
+        cuts.push(Cut {
+            start: Time(last.source_end),
+            end: None,
+            reason,
+            fade_out: deliberate(last.fade_out),
+            fade_in: None,
+        });
     }
     cuts
 }
@@ -244,7 +265,11 @@ mod tests {
         assert_eq!(recovery.pieces.len(), 4);
         assert_eq!(recovery.interstitials.len(), 2);
         let first = &recovery.interstitials[0];
-        assert_eq!((first.export_start, first.export_end), (1100.0, 1110.0), "gap + sting + gap form one interstitial");
+        assert_eq!(
+            (first.export_start, first.export_end),
+            (1100.0, 1110.0),
+            "gap + sting + gap form one interstitial"
+        );
         assert!(recovery.unmatched.is_empty(), "{:?}", recovery.unmatched);
     }
 
@@ -252,23 +277,37 @@ mod tests {
     fn audio_after_the_last_match_is_accounted_for() {
         let missing = classify("x", "x.mp3", 5000.0, vec![piece("a", 0.0, 50.0, 600.0)]);
         assert_eq!(missing.unmatched.len(), 1, "an unmatched hour at the end is reported");
-        assert_eq!((missing.unmatched[0].export_start, missing.unmatched[0].export_end), (600.0, 5000.0));
+        assert_eq!(
+            (missing.unmatched[0].export_start, missing.unmatched[0].export_end),
+            (600.0, 5000.0)
+        );
         assert_eq!(missing.warnings.len(), 1);
 
         let outro = classify("x", "x.mp3", 603.0, vec![piece("a", 0.0, 50.0, 600.0)]);
         assert!(outro.unmatched.is_empty());
-        assert_eq!(outro.interstitials.len(), 1, "a closing sting is material, not a missing episode");
+        assert_eq!(
+            outro.interstitials.len(),
+            1,
+            "a closing sting is material, not a missing episode"
+        );
     }
 
     #[test]
     fn an_hour_between_episodes_is_a_missing_source_not_an_interstitial() {
         // Between a and b the export plays an episode that was not a candidate; only its theme
         // song matched (a short sting from c).
-        let pieces = vec![piece("a", 0.0, 50.0, 600.0), piece("c", 1200.0, 30.0, 10.0), piece("b", 4200.0, 40.0, 900.0)];
+        let pieces = vec![
+            piece("a", 0.0, 50.0, 600.0),
+            piece("c", 1200.0, 30.0, 10.0),
+            piece("b", 4200.0, 40.0, 900.0),
+        ];
         let recovery = classify("x", "x.mp3", 5100.0, pieces);
         assert!(recovery.interstitials.is_empty(), "{:?}", recovery.interstitials);
         assert_eq!(recovery.unmatched.len(), 1);
-        assert_eq!((recovery.unmatched[0].export_start, recovery.unmatched[0].export_end), (600.0, 4200.0));
+        assert_eq!(
+            (recovery.unmatched[0].export_start, recovery.unmatched[0].export_end),
+            (600.0, 4200.0)
+        );
         assert_eq!(recovery.warnings.len(), 1);
     }
 
@@ -284,7 +323,10 @@ mod tests {
         let cuts = &plan.episodes[0].cuts;
         assert_eq!(cuts.len(), 3);
         assert_eq!((cuts[0].start, cuts[0].end), (Time(0.0), Some(Time(50.0))));
-        assert_eq!((cuts[1].start, cuts[1].end, cuts[1].fade_out, cuts[1].fade_in), (Time(650.0), Some(Time(700.0)), Some(1.5), None));
+        assert_eq!(
+            (cuts[1].start, cuts[1].end, cuts[1].fade_out, cuts[1].fade_in),
+            (Time(650.0), Some(Time(700.0)), Some(1.5), None)
+        );
         assert_eq!((cuts[2].start, cuts[2].end), (Time(1200.0), None));
     }
 }

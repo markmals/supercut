@@ -85,7 +85,8 @@ pub fn preview(context: &Context, request: Request) -> anyhow::Result<Preview> {
     let partial = partial_path(&output);
     let args = graph::encode_args(&reel.pieces, &resolved.format, limit_db, &partial);
     encode::run(&args, duration, "previewing")?;
-    std::fs::rename(&partial, &output).with_context(|| format!("moving {} into place", output.display()))?;
+    std::fs::rename(&partial, &output)
+        .with_context(|| format!("moving {} into place", output.display()))?;
     Ok(Preview { preview: output, duration: Time(duration), transitions: reel.transitions })
 }
 

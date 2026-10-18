@@ -155,7 +155,11 @@ pub fn kept_ranges(cuts: &[Cut], duration: f64) -> Vec<Kept> {
 
 /// The episode's chapters in output time. A chapter inside a cut moves to where the audio
 /// resumes; one with no audio left after it is dropped.
-fn map_chapters(episode: &InputEpisode, pieces: &[Piece], warnings: &mut Vec<String>) -> Vec<SegmentChapter> {
+fn map_chapters(
+    episode: &InputEpisode,
+    pieces: &[Piece],
+    warnings: &mut Vec<String>,
+) -> Vec<SegmentChapter> {
     let mut ordered: Vec<&Chapter> = episode.chapters.iter().collect();
     ordered.sort_by(|left, right| left.start.seconds().total_cmp(&right.start.seconds()));
     let mut mapped: Vec<SegmentChapter> = Vec::new();
@@ -175,7 +179,12 @@ fn map_chapters(episode: &InputEpisode, pieces: &[Piece], warnings: &mut Vec<Str
             continue;
         }
         let description = chapter.description.clone();
-        mapped.push(SegmentChapter { start, end: start, title: chapter.title.clone(), description });
+        mapped.push(SegmentChapter {
+            start,
+            end: start,
+            title: chapter.title.clone(),
+            description,
+        });
     }
     lead_in(episode, pieces, &mut mapped);
     mapped
@@ -193,7 +202,8 @@ fn lead_in(episode: &InputEpisode, pieces: &[Piece], mapped: &mut Vec<SegmentCha
         return;
     }
     let description = Some(episode.description.clone());
-    mapped.insert(0, SegmentChapter { start, end: start, title: episode.title.clone(), description });
+    mapped
+        .insert(0, SegmentChapter { start, end: start, title: episode.title.clone(), description });
 }
 
 /// Where a position in the episode's own audio ends up in the rendered file.

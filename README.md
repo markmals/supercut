@@ -239,10 +239,12 @@ ln -s "$PWD/skills/building-podcast-supercuts" ~/.claude/skills/
 ## Development
 
 ```sh
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-Some tests encode and probe audio, so they need `ffmpeg` and `ffprobe` on `PATH`. Work in progress and known gaps are in [BACKLOG.md](BACKLOG.md).
+`rustfmt.toml` sets the formatting (100 columns); `cargo fmt` applies it. Clippy runs at its default lint level, with warnings treated as errors. Some tests encode and probe audio, so they need `ffmpeg` and `ffprobe` on `PATH`. Work in progress and known gaps are in [BACKLOG.md](BACKLOG.md).
 
 ## License
 

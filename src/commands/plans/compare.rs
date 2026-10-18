@@ -21,7 +21,9 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
     let (_, show) = context.show(&a.show)?;
     let index = show.load_synced_index()?;
     let mut durations = BTreeMap::new();
-    for planned in a.episodes.iter().filter(|planned| b.episodes.iter().any(|other| other.id == planned.id)) {
+    for planned in
+        a.episodes.iter().filter(|planned| b.episodes.iter().any(|other| other.id == planned.id))
+    {
         let analysis = crate::analysis::episode_analysis(&show, index.get(&planned.id)?)?;
         durations.insert(planned.id.clone(), analysis.duration);
     }

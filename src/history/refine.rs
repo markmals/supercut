@@ -36,8 +36,13 @@ pub fn compare_frames(export: &[f32], source: &[f32]) -> Vec<FrameMatch> {
             if level_x < SILENT_RMS && level_y < SILENT_RMS {
                 return FrameMatch::Silent;
             }
-            if level_x >= SILENT_RMS && level_y >= SILENT_RMS && correlation(x, y) >= MATCH_CORRELATION {
-                return FrameMatch::Matched { gain: if level_y >= GAIN_RMS { level_x / level_y } else { f32::NAN } };
+            if level_x >= SILENT_RMS
+                && level_y >= SILENT_RMS
+                && correlation(x, y) >= MATCH_CORRELATION
+            {
+                return FrameMatch::Matched {
+                    gain: if level_y >= GAIN_RMS { level_x / level_y } else { f32::NAN },
+                };
             }
             FrameMatch::Different
         })

@@ -101,7 +101,11 @@ fn runs(
         let label = &labels[path[begin]];
         segments.push(LabeledSegment {
             label: label.clone(),
-            start: Time(if begin == 0 { 0.0 } else { gap_middle(&units[begin - 1], &units[begin]) }),
+            start: Time(if begin == 0 {
+                0.0
+            } else {
+                gap_middle(&units[begin - 1], &units[begin])
+            }),
             end: Time(match units.get(index) {
                 Some(next) => gap_middle(&units[index - 1], next),
                 None => duration.max(members[members.len() - 1].end.seconds()),

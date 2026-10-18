@@ -64,17 +64,25 @@ struct Receipt {
 pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
     let (from, to) = (args.from.seconds(), args.to.seconds());
     if from < 0.0 || to <= from {
-        return Err(CliError::invalid("`--to` must come after `--from`, and both inside the episode").into());
+        return Err(CliError::invalid(
+            "`--to` must come after `--from`, and both inside the episode",
+        )
+        .into());
     }
     let (_, show) = context.show(&args.show)?;
     let index = show.load_synced_index()?;
     let episode = index.get(&args.id)?;
     let envelope = crate::analysis::episode_envelope(&show, episode)?;
     if to > envelope.duration() {
-        return Err(CliError::invalid(format!("the episode ends at {}", Time(envelope.duration()))).into());
+        return Err(CliError::invalid(format!(
+            "the episode ends at {}",
+            Time(envelope.duration())
+        ))
+        .into());
     }
     if args.out.exists() && !args.force {
-        let conflict = CliError::conflict(format!("{} already exists", args.out.display())).hint("pass --force to replace it");
+        let conflict = CliError::conflict(format!("{} already exists", args.out.display()))
+            .hint("pass --force to replace it");
         return Err(conflict.into());
     }
     if !args.dry_run {
@@ -98,19 +106,37 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
 fn edge_warnings(envelope: &Envelope, from: f64, to: f64) -> Vec<String> {
     let mut warnings = Vec::new();
     if envelope.mean_db(from, from + EDGE_SECONDS) > EDGE_QUIET_DB {
-        let quiet = envelope.quiet_spans((from - SEARCH_SECONDS).max(0.0), from + EDGE_SECONDS, EDGE_QUIET_DB, SILENCE_SECONDS).pop();
+        let quiet = envelope
+            .quiet_spans(
+                (from - SEARCH_SECONDS).max(0.0),
+                from + EDGE_SECONDS,
+                EDGE_QUIET_DB,
+                SILENCE_SECONDS,
+            )
+            .pop();
         match quiet {
             Some((_, starts)) if (starts - from).abs() <= EDGE_SECONDS => {}
-            Some((_, starts)) => warnings.push(format!("the clip starts on sound, which begins at {}", Time(starts))),
-            None => warnings.push(format!("the clip starts on sound that began more than {SEARCH_SECONDS} s earlier")),
+            Some((_, starts)) => {
+                warnings.push(format!("the clip starts on sound, which begins at {}", Time(starts)))
+            }
+            None => warnings.push(format!(
+                "the clip starts on sound that began more than {SEARCH_SECONDS} s earlier"
+            )),
         }
     }
     if envelope.mean_db(to - EDGE_SECONDS, to) > EDGE_QUIET_DB {
-        let quiet = envelope.quiet_spans(to - EDGE_SECONDS, to + SEARCH_SECONDS, EDGE_QUIET_DB, SILENCE_SECONDS).into_iter().next();
+        let quiet = envelope
+            .quiet_spans(to - EDGE_SECONDS, to + SEARCH_SECONDS, EDGE_QUIET_DB, SILENCE_SECONDS)
+            .into_iter()
+            .next();
         match quiet {
             Some((ends, _)) if (ends - to).abs() <= EDGE_SECONDS => {}
-            Some((ends, _)) => warnings.push(format!("the clip ends on sound, which dies away at {}", Time(ends))),
-            None => warnings.push(format!("the clip ends on sound that goes on for more than {SEARCH_SECONDS} s")),
+            Some((ends, _)) => {
+                warnings.push(format!("the clip ends on sound, which dies away at {}", Time(ends)))
+            }
+            None => warnings.push(format!(
+                "the clip ends on sound that goes on for more than {SEARCH_SECONDS} s"
+            )),
         }
     }
     warnings
@@ -122,16 +148,30 @@ fn extract(audio: &Path, from: f64, to: f64, out: &Path) -> anyhow::Result<()> {
         std::fs::create_dir_all(folder)?;
     }
     let partial = partial_path(out);
-    let format = out.extension().and_then(|extension| extension.to_str()).unwrap_or("flac").to_lowercase();
+    let format =
+        out.extension().and_then(|extension| extension.to_str()).unwrap_or("flac").to_lowercase();
     let output = std::process::Command::new("ffmpeg")
-        .args(["-nostdin", "-v", "error", "-y", "-ss", &format!("{from:.6}"), "-t", &format!("{:.6}", to - from), "-i"])
+        .args([
+            "-nostdin",
+            "-v",
+            "error",
+            "-y",
+            "-ss",
+            &format!("{from:.6}"),
+            "-t",
+            &format!("{:.6}", to - from),
+            "-i",
+        ])
         .arg(audio)
         .args(["-map", "0:a:0", "-map_metadata", "-1", "-f", &format])
         .arg(&partial)
         .output()?;
     if !output.status.success() {
         let _ = std::fs::remove_file(&partial);
-        let message = format!("ffmpeg could not write the clip: {}", String::from_utf8_lossy(&output.stderr).trim());
+        let message = format!(
+            "ffmpeg could not write the clip: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
         return Err(CliError::new(ErrorCode::ExternalTool, message).into());
     }
     std::fs::rename(&partial, out)?;

@@ -20,7 +20,8 @@ impl fmt::Display for Time {
         let total_millis = (self.0.abs() * 1000.0).round() as u64;
         let millis = total_millis % 1000;
         let total_seconds = total_millis / 1000;
-        let (hours, minutes, seconds) = (total_seconds / 3600, total_seconds / 60 % 60, total_seconds % 60);
+        let (hours, minutes, seconds) =
+            (total_seconds / 3600, total_seconds / 60 % 60, total_seconds % 60);
         let sign = if negative { "-" } else { "" };
         if hours > 0 {
             write!(f, "{sign}{hours}:{minutes:02}:{seconds:02}.{millis:03}")

@@ -30,7 +30,8 @@ fn jsonc() -> ParseOptions {
 /// The config `text` describes, or what is wrong with it: a syntax error with its line and
 /// column, or a setting with its path (`shows.<slug>.chapters.number`).
 pub fn parse(text: &str) -> Result<Config, String> {
-    let value: serde_json::Value = jsonc_parser::parse_to_serde_value(text, &jsonc()).map_err(|error| error.to_string())?;
+    let value: serde_json::Value =
+        jsonc_parser::parse_to_serde_value(text, &jsonc()).map_err(|error| error.to_string())?;
     serde_path_to_error::deserialize(value).map_err(|error| match error.path().to_string() {
         path if path == "." => error.inner().to_string(),
         path => format!("`{path}`: {}", error.inner()),
@@ -64,7 +65,9 @@ mod tests {
 
     #[test]
     fn a_wrong_setting_is_named_by_its_path() {
-        let error = parse(r#"{ "shows": { "nhl": { "title": "NHL", "feeds": [], "bumper": [] } } }"#).unwrap_err();
+        let error =
+            parse(r#"{ "shows": { "nhl": { "title": "NHL", "feeds": [], "bumper": [] } } }"#)
+                .unwrap_err();
         assert!(error.starts_with("`shows.nhl.bumper`: unknown field `bumper`"), "{error}");
     }
 }

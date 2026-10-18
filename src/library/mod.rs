@@ -85,8 +85,12 @@ impl ShowLibrary {
     pub fn load_index(&self) -> anyhow::Result<EpisodeIndex> {
         let path = self.index_path();
         match std::fs::read_to_string(&path) {
-            Ok(text) => serde_json::from_str(&text).with_context(|| format!("parsing {}", path.display())),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(EpisodeIndex::default()),
+            Ok(text) => {
+                serde_json::from_str(&text).with_context(|| format!("parsing {}", path.display()))
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                Ok(EpisodeIndex::default())
+            }
             Err(error) => Err(error).with_context(|| format!("reading {}", path.display())),
         }
     }
@@ -129,6 +133,7 @@ pub fn partial_path(path: &Path) -> PathBuf {
 }
 
 pub fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> anyhow::Result<T> {
-    let text = std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+    let text =
+        std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
     serde_json::from_str(&text).with_context(|| format!("parsing {}", path.display()))
 }

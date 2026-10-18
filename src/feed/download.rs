@@ -45,7 +45,12 @@ pub fn planned_file(episode: &Episode) -> String {
     format!("{}.{}", episode.id, extension(None, &episode.enclosure_url))
 }
 
-fn write_file(reader: &mut impl Read, path: &Path, id: &str, total: Option<u64>) -> anyhow::Result<u64> {
+fn write_file(
+    reader: &mut impl Read,
+    path: &Path,
+    id: &str,
+    total: Option<u64>,
+) -> anyhow::Result<u64> {
     let file = File::create(path).with_context(|| format!("creating {}", path.display()))?;
     let mut writer = BufWriter::new(file);
     let mut buffer = vec![0u8; BUFFER_BYTES];
@@ -69,7 +74,9 @@ fn write_file(reader: &mut impl Read, path: &Path, id: &str, total: Option<u64>)
 
 fn progress(written: u64, total: Option<u64>) -> String {
     match total {
-        Some(total) if total > 0 => format!("{} of {} ({}%)", size(Some(written)), size(Some(total)), written * 100 / total),
+        Some(total) if total > 0 => {
+            format!("{} of {} ({}%)", size(Some(written)), size(Some(total)), written * 100 / total)
+        }
         _ => size(Some(written)),
     }
 }
@@ -100,7 +107,8 @@ fn extension(mime_type: Option<&str>, url: &str) -> String {
 fn url_extension(url: &str) -> Option<String> {
     let path = redacted(url);
     let extension = Path::new(path).extension()?.to_str()?.to_ascii_lowercase();
-    (extension.len() <= 4 && extension.chars().all(|c| c.is_ascii_alphanumeric())).then_some(extension)
+    (extension.len() <= 4 && extension.chars().all(|c| c.is_ascii_alphanumeric()))
+        .then_some(extension)
 }
 
 #[cfg(test)]
@@ -110,8 +118,14 @@ mod tests {
     #[test]
     fn names_files_after_the_served_type_then_the_url() {
         assert_eq!(extension(Some("audio/mpeg"), "https://example.com/stream?id=7"), "mp3");
-        assert_eq!(extension(Some("application/octet-stream"), "https://example.com/ep.m4a?token=x"), "m4a");
+        assert_eq!(
+            extension(Some("application/octet-stream"), "https://example.com/ep.m4a?token=x"),
+            "m4a"
+        );
         assert_eq!(extension(None, "https://example.com/stream"), "mp3");
-        assert_eq!(extension(Some("audio/x-m4a; charset=utf-8"), "https://example.com/ep.mp3"), "m4a");
+        assert_eq!(
+            extension(Some("audio/x-m4a; charset=utf-8"), "https://example.com/ep.mp3"),
+            "m4a"
+        );
     }
 }

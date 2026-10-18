@@ -85,7 +85,8 @@ pub mod tests {
     #[test]
     fn finds_the_exact_sample_lag_at_a_different_gain() {
         let haystack = signal(7, 30_000);
-        let needle: Vec<f32> = haystack[4_321..4_321 + 11_025].iter().map(|sample| sample * 0.5).collect();
+        let needle: Vec<f32> =
+            haystack[4_321..4_321 + 11_025].iter().map(|sample| sample * 0.5).collect();
         let (lag, score) = best_lag(&needle, &haystack, 8_000).unwrap();
         assert_eq!(lag, 4_321);
         assert!(score > 0.99, "{score}");

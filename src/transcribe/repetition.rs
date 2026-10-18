@@ -76,12 +76,17 @@ fn loop_at(words: &[&Word], keys: &[String], start: usize) -> Option<Loop> {
                 span: UnreliableSpan {
                     start: span.start,
                     end: span.end,
-                    reason: format!("engine repeated \"{}\" {repeats} times", keys[start..start + phrase].join(" ")),
+                    reason: format!(
+                        "engine repeated \"{}\" {repeats} times",
+                        keys[start..start + phrase].join(" ")
+                    ),
                 },
             })
         })
         // Longest loop wins; between phrasings of the same stretch, the shortest phrase.
-        .reduce(|best, candidate| if candidate.words.end > best.words.end { candidate } else { best })
+        .reduce(
+            |best, candidate| if candidate.words.end > best.words.end { candidate } else { best },
+        )
 }
 
 /// How many times the `phrase` words at `start` repeat back to back, itself included.
@@ -97,7 +102,10 @@ fn repeats_of(keys: &[String], start: usize, phrase: usize) -> usize {
 
 /// What makes two spoken words the same word: letters and digits, case and punctuation aside.
 fn key(text: &str) -> String {
-    text.chars().filter(|c| c.is_alphanumeric() || *c == '\'').flat_map(char::to_lowercase).collect()
+    text.chars()
+        .filter(|c| c.is_alphanumeric() || *c == '\'')
+        .flat_map(char::to_lowercase)
+        .collect()
 }
 
 #[cfg(test)]
@@ -112,10 +120,16 @@ mod tests {
             .map(|line| {
                 let mut parts = line.splitn(3, ' ');
                 let mut number = || parts.next().unwrap().parse().unwrap();
-                Word { start: number(), end: number(), text: parts.next().unwrap().to_owned(), probability: None }
+                Word {
+                    start: number(),
+                    end: number(),
+                    text: parts.next().unwrap().to_owned(),
+                    probability: None,
+                }
             })
             .collect();
-        let segments = words.chunks(4).filter_map(|chunk| super::super::segment_of(chunk.to_vec())).collect();
+        let segments =
+            words.chunks(4).filter_map(|chunk| super::super::segment_of(chunk.to_vec())).collect();
         Transcript {
             engine: "mlx-whisper".into(),
             model: "test".into(),

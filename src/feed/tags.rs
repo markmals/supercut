@@ -14,14 +14,18 @@ pub fn title(path: &Path) -> anyhow::Result<Option<String>> {
 }
 
 fn is_mp3(path: &Path) -> bool {
-    path.extension().and_then(OsStr::to_str).is_some_and(|extension| extension.eq_ignore_ascii_case("mp3"))
+    path.extension()
+        .and_then(OsStr::to_str)
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("mp3"))
 }
 
 fn id3_title(path: &Path) -> anyhow::Result<Option<String>> {
     match id3::Tag::read_from_path(path) {
         Ok(tag) => Ok(id3::TagLike::title(&tag).map(str::to_owned)),
         Err(error) if matches!(error.kind, id3::ErrorKind::NoTag) => Ok(None),
-        Err(error) => Err(error).with_context(|| format!("reading the ID3 tags of {}", path.display())),
+        Err(error) => {
+            Err(error).with_context(|| format!("reading the ID3 tags of {}", path.display()))
+        }
     }
 }
 

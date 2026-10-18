@@ -100,7 +100,10 @@ fn kind(episode_type: Option<&str>) -> anyhow::Result<EpisodeKind> {
 /// `itunes:duration`: seconds, `MM:SS` or `H:MM:SS`.
 fn duration(value: &str) -> anyhow::Result<f64> {
     let parts: Vec<&str> = value.trim().split(':').collect();
-    ensure!((1..=3).contains(&parts.len()), "itunes:duration `{value}` is not seconds, MM:SS or H:MM:SS");
+    ensure!(
+        (1..=3).contains(&parts.len()),
+        "itunes:duration `{value}` is not seconds, MM:SS or H:MM:SS"
+    );
     let mut seconds = 0.0;
     for part in parts {
         let part: f64 = part.parse().with_context(|| format!("itunes:duration `{value}`"))?;
@@ -168,16 +171,26 @@ mod tests {
 
     #[test]
     fn skips_items_without_audio() {
-        let titles: Vec<String> = parse(FEED).unwrap().iter().map(|item| item.title.clone()).collect();
+        let titles: Vec<String> =
+            parse(FEED).unwrap().iter().map(|item| item.title.clone()).collect();
         assert_eq!(titles, ["12. Tea Towels & A Surprise", "Bonus Room", "Trailer"]);
     }
 
     #[test]
     fn an_item_without_a_guid_never_takes_its_url_token_into_its_id() {
         let items = parse(FEED).unwrap();
-        assert_eq!(items[1].guid, "no-guid:2024-08-07T14:00:00Z:https://example.com/audio/bonus.m4a:Bonus Room");
-        assert_eq!(items[2].guid, "no-guid:2024-08-08T14:00:00Z:https://example.com/audio/trailer.mp3:Trailer");
-        assert!(items.iter().all(|item| !item.guid.contains("token")), "a private token never becomes an id");
+        assert_eq!(
+            items[1].guid,
+            "no-guid:2024-08-07T14:00:00Z:https://example.com/audio/bonus.m4a:Bonus Room"
+        );
+        assert_eq!(
+            items[2].guid,
+            "no-guid:2024-08-08T14:00:00Z:https://example.com/audio/trailer.mp3:Trailer"
+        );
+        assert!(
+            items.iter().all(|item| !item.guid.contains("token")),
+            "a private token never becomes an id"
+        );
     }
 
     #[test]

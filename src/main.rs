@@ -66,7 +66,11 @@ fn main() -> ExitCode {
         }
         Err(error) => {
             let message = error.render().to_string();
-            return report(&CliError::invalid(message.trim()).hint("supercut schema <resource> <operation>").into());
+            return report(
+                &CliError::invalid(message.trim())
+                    .hint("supercut schema <resource> <operation>")
+                    .into(),
+            );
         }
     };
     match run(cli) {

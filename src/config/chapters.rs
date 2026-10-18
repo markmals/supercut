@@ -46,18 +46,25 @@ impl TryFrom<Written> for ChapterScheme {
     type Error = String;
 
     fn try_from(written: Written) -> Result<Self, Self::Error> {
-        let title_pattern = Regex::new(&written.title_pattern).map_err(|error| format!("`title_pattern`: {error}"))?;
+        let title_pattern = Regex::new(&written.title_pattern)
+            .map_err(|error| format!("`title_pattern`: {error}"))?;
         if written.parts.is_empty() {
             return Err("`parts` needs at least one title".into());
         }
         let groups: Vec<&str> = title_pattern.capture_names().flatten().collect();
         let part_names: Vec<&str> = groups.iter().copied().chain([NUMBER]).collect();
         if let Some(part) = written.parts.iter().find(|part| !fully_named(part, &part_names)) {
-            return Err(format!("`parts` entry `{part}` uses a name neither `number` nor `title_pattern` gives"));
+            return Err(format!(
+                "`parts` entry `{part}` uses a name neither `number` nor `title_pattern` gives"
+            ));
         }
         let number_names: Vec<&str> = groups.iter().copied().chain(NUMBER_FIELDS).collect();
-        if let Some(number) = written.number.iter().find(|number| !fully_named(number, &number_names)) {
-            return Err(format!("`number` entry `{number}` uses a name other than {{season}}, {{episode}} or a `title_pattern` group"));
+        if let Some(number) =
+            written.number.iter().find(|number| !fully_named(number, &number_names))
+        {
+            return Err(format!(
+                "`number` entry `{number}` uses a name other than {{season}}, {{episode}} or a `title_pattern` group"
+            ));
         }
         Ok(Self { parts: written.parts, number: written.number, title_pattern })
     }
@@ -65,13 +72,19 @@ impl TryFrom<Written> for ChapterScheme {
 
 /// Whether every `{…}` in `template` is one of `names`.
 fn fully_named(template: &str, names: &[&str]) -> bool {
-    let unfilled = names.iter().fold(template.to_owned(), |rest, name| rest.replace(&format!("{{{name}}}"), ""));
+    let unfilled = names
+        .iter()
+        .fold(template.to_owned(), |rest, name| rest.replace(&format!("{{{name}}}"), ""));
     !unfilled.contains(['{', '}'])
 }
 
 impl From<ChapterScheme> for Written {
     fn from(scheme: ChapterScheme) -> Self {
-        Self { parts: scheme.parts, number: scheme.number, title_pattern: scheme.title_pattern.as_str().to_owned() }
+        Self {
+            parts: scheme.parts,
+            number: scheme.number,
+            title_pattern: scheme.title_pattern.as_str().to_owned(),
+        }
     }
 }
 
@@ -103,7 +116,8 @@ impl ChapterScheme {
             .collect();
         values.push(("season", episode.season.map(|season| format!("{season:02}"))));
         values.push(("episode", episode.episode.map(|number| format!("{number:02}"))));
-        let number = self.number.iter().find_map(|template| fill(template, &values)).unwrap_or_default();
+        let number =
+            self.number.iter().find_map(|template| fill(template, &values)).unwrap_or_default();
         values.push((NUMBER, Some(number)));
         self.parts.iter().map(|part| fill(part, &values)).collect()
     }
@@ -143,28 +157,60 @@ mod tests {
     fn an_episode_title_and_number_fill_each_part() {
         assert_eq!(
             titles("Non-Rabbie Behavior with Joe Wengert", Some(9), Some(8)).unwrap(),
-            ["Intro: S09E08 - Non-Rabbie Behavior", "Guest: S09E08 - Joe Wengert", "Outro: S09E08 - Non-Rabbie Behavior"]
+            [
+                "Intro: S09E08 - Non-Rabbie Behavior",
+                "Guest: S09E08 - Joe Wengert",
+                "Outro: S09E08 - Non-Rabbie Behavior"
+            ]
         );
-        assert_eq!(titles("Chili Recipe PLEASE! w/ Mano Agapion", Some(3), Some(12)).unwrap()[1], "Guest: S03E12 - Mano Agapion");
-        assert_eq!(titles("Ask Us Anything with Everyone", None, None).unwrap()[0], "Intro: Ask Us Anything", "no number at all");
-        assert_eq!(titles("BONUS ROOM #31: Season 10 Pre-Season Retreat", Some(10), None), None, "no guest to name");
+        assert_eq!(
+            titles("Chili Recipe PLEASE! w/ Mano Agapion", Some(3), Some(12)).unwrap()[1],
+            "Guest: S03E12 - Mano Agapion"
+        );
+        assert_eq!(
+            titles("Ask Us Anything with Everyone", None, None).unwrap()[0],
+            "Intro: Ask Us Anything",
+            "no number at all"
+        );
+        assert_eq!(
+            titles("BONUS ROOM #31: Season 10 Pre-Season Retreat", Some(10), None),
+            None,
+            "no guest to name"
+        );
     }
 
     #[test]
     fn a_bonus_episode_without_a_feed_number_takes_the_next_number_that_fills() {
-        let bonus = "BONUS ROOM #30: Rain of Moonfire with Ify Nwadiwe (Live at SF SKetchfest 2026)";
+        let bonus =
+            "BONUS ROOM #30: Rain of Moonfire with Ify Nwadiwe (Live at SF SKetchfest 2026)";
         assert_eq!(
             titles(bonus, Some(9), None).unwrap(),
-            ["Intro: Bonus #30 - Rain of Moonfire", "Guest: Bonus #30 - Ify Nwadiwe", "Outro: Bonus #30 - Rain of Moonfire"]
+            [
+                "Intro: Bonus #30 - Rain of Moonfire",
+                "Guest: Bonus #30 - Ify Nwadiwe",
+                "Outro: Bonus #30 - Rain of Moonfire"
+            ]
         );
-        assert_eq!(titles("BONUS ROOM 8: Double Date At The Sizzler with Janet Varney", Some(6), None).unwrap()[0], "Intro: Bonus #8 - Double Date At The Sizzler");
+        assert_eq!(
+            titles("BONUS ROOM 8: Double Date At The Sizzler with Janet Varney", Some(6), None)
+                .unwrap()[0],
+            "Intro: Bonus #8 - Double Date At The Sizzler"
+        );
     }
 
     #[test]
     fn a_template_using_a_name_nothing_gives_is_refused() {
-        let part = Written { parts: vec!["Guest: {guest}".into()], number: Vec::new(), title_pattern: "(?P<title>.+)".into() };
+        let part = Written {
+            parts: vec!["Guest: {guest}".into()],
+            number: Vec::new(),
+            title_pattern: "(?P<title>.+)".into(),
+        };
         assert!(ChapterScheme::try_from(part).unwrap_err().contains("Guest: {guest}"));
-        let number = Written { parts: vec!["{title}".into()], number: vec!["Ep {number}".into()], title_pattern: "(?P<title>.+)".into() };
+        let number = Written {
+            parts: vec!["{title}".into()],
+            number: vec!["Ep {number}".into()],
+            title_pattern: "(?P<title>.+)".into(),
+        };
         assert!(ChapterScheme::try_from(number).unwrap_err().contains("Ep {number}"));
     }
 }

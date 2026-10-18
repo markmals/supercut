@@ -35,8 +35,8 @@ pub fn parse(json: &str, made: &Made) -> anyhow::Result<Transcript> {
         probability: Option<f32>,
     }
 
-    let report: Report =
-        serde_json::from_str(&as_json(json)).with_context(|| format!("parsing {}'s JSON", made.engine))?;
+    let report: Report = serde_json::from_str(&as_json(json))
+        .with_context(|| format!("parsing {}'s JSON", made.engine))?;
     let segments = report
         .segments
         .into_iter()
@@ -44,7 +44,9 @@ pub fn parse(json: &str, made: &Made) -> anyhow::Result<Transcript> {
             let words = segment
                 .words
                 .into_iter()
-                .filter_map(|word| super::word_of(&word.word, word.start, word.end, word.probability))
+                .filter_map(|word| {
+                    super::word_of(&word.word, word.start, word.end, word.probability)
+                })
                 .collect();
             super::segment_of(words)
         })
@@ -79,7 +81,8 @@ fn as_json(raw: &str) -> Cow<'_, str> {
             inside_string = !inside_string;
         }
         escaped = inside_string && character == '\\' && !escaped;
-        match NON_NUMBERS.iter().find(|word| !inside_string && raw[position..].starts_with(**word)) {
+        match NON_NUMBERS.iter().find(|word| !inside_string && raw[position..].starts_with(**word))
+        {
             Some(word) => {
                 cleaned.push_str("null");
                 skip = word.len() - 1;
@@ -94,7 +97,11 @@ fn as_json(raw: &str) -> Cow<'_, str> {
 mod tests {
     use super::{Made, parse};
 
-    const MADE: Made = Made { engine: "mlx-whisper", model: "mlx-community/whisper-large-v3-turbo", language: "en" };
+    const MADE: Made = Made {
+        engine: "mlx-whisper",
+        model: "mlx-community/whisper-large-v3-turbo",
+        language: "en",
+    };
 
     const REPORT: &str = r#"{
       "text": " Hi, I'm Paul F. Tompkins.",

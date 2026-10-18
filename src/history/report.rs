@@ -61,7 +61,12 @@ pub struct InterstitialReport {
     pub sources: Vec<String>,
 }
 
-pub fn build(show: &ShowLibrary, index: &EpisodeIndex, recovery: &Recovery, plan: &Plan) -> anyhow::Result<Report> {
+pub fn build(
+    show: &ShowLibrary,
+    index: &EpisodeIndex,
+    recovery: &Recovery,
+    plan: &Plan,
+) -> anyhow::Result<Report> {
     let mut episodes = Vec::new();
     for planned in &plan.episodes {
         let episode = index.get(&planned.id)?;
@@ -88,10 +93,27 @@ pub fn build(show: &ShowLibrary, index: &EpisodeIndex, recovery: &Recovery, plan
         .map(|interstitial| InterstitialReport {
             at: Time(interstitial.export_start),
             seconds: round(interstitial.export_end - interstitial.export_start),
-            sources: interstitial.sources.iter().map(|source| format!("{} {}-{}", source.episode, Time(source.source_start), Time(source.source_end))).collect(),
+            sources: interstitial
+                .sources
+                .iter()
+                .map(|source| {
+                    format!(
+                        "{} {}-{}",
+                        source.episode,
+                        Time(source.source_start),
+                        Time(source.source_end)
+                    )
+                })
+                .collect(),
         })
         .collect();
-    Ok(Report { name: recovery.name.clone(), export: recovery.export.clone(), duration: Time(recovery.duration), episodes, interstitials })
+    Ok(Report {
+        name: recovery.name.clone(),
+        export: recovery.export.clone(),
+        duration: Time(recovery.duration),
+        episodes,
+        interstitials,
+    })
 }
 
 fn cut_report(cut: &crate::plan::Cut, duration: f64, transcript: Option<&Transcript>) -> CutReport {
@@ -110,9 +132,22 @@ fn cut_report(cut: &crate::plan::Cut, duration: f64, transcript: Option<&Transcr
         after: None,
     };
     let Some(transcript) = transcript else { return report };
-    let inside: Vec<&str> = transcript.words_between(start, end).map(|word| word.text.as_str()).collect();
-    report.before = Some(last_words(transcript.words_between((start - 30.0).max(0.0), start).map(|word| word.text.as_str()).collect()));
-    report.after = Some(transcript.words_between(end, end + 30.0).take(QUOTE_WORDS / 2).map(|word| word.text.as_str()).collect::<Vec<_>>().join(" "));
+    let inside: Vec<&str> =
+        transcript.words_between(start, end).map(|word| word.text.as_str()).collect();
+    report.before = Some(last_words(
+        transcript
+            .words_between((start - 30.0).max(0.0), start)
+            .map(|word| word.text.as_str())
+            .collect(),
+    ));
+    report.after = Some(
+        transcript
+            .words_between(end, end + 30.0)
+            .take(QUOTE_WORDS / 2)
+            .map(|word| word.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" "),
+    );
     report.opens = Some(inside.iter().take(QUOTE_WORDS).copied().collect::<Vec<_>>().join(" "));
     if inside.len() > QUOTE_WORDS {
         report.closes = Some(last_words(inside.clone()));
@@ -127,7 +162,12 @@ fn last_words(words: Vec<&str>) -> String {
 
 /// Markdown for reading the report.
 pub fn markdown(report: &Report) -> String {
-    let mut text = format!("# {}\n\n{} long, {} episodes\n", report.name, report.duration, report.episodes.len());
+    let mut text = format!(
+        "# {}\n\n{} long, {} episodes\n",
+        report.name,
+        report.duration,
+        report.episodes.len()
+    );
     for episode in &report.episodes {
         text.push_str(&format!(
             "\n## {} — {}\n\nkept {}, cut {} in {} cuts{}\n",
@@ -144,7 +184,12 @@ pub fn markdown(report: &Report) -> String {
     }
     text.push_str("\n## Interstitials\n\n");
     for interstitial in &report.interstitials {
-        text.push_str(&format!("- at {} ({:.1} s): {}\n", interstitial.at, interstitial.seconds, interstitial.sources.join(", ")));
+        text.push_str(&format!(
+            "- at {} ({:.1} s): {}\n",
+            interstitial.at,
+            interstitial.seconds,
+            interstitial.sources.join(", ")
+        ));
     }
     text
 }
@@ -157,7 +202,12 @@ fn cut_markdown(cut: &CutReport) -> String {
         cut.fade_in.map(|fade| format!(", fade-in {fade:.2} s")).unwrap_or_default()
     );
     let mut text = format!("\n- **cut {}–{}** ({:.1} s{fades})\n", cut.start, end, cut.seconds);
-    let quotes = [("before", &cut.before), ("opens", &cut.opens), ("closes", &cut.closes), ("after", &cut.after)];
+    let quotes = [
+        ("before", &cut.before),
+        ("opens", &cut.opens),
+        ("closes", &cut.closes),
+        ("after", &cut.after),
+    ];
     for (label, quote) in quotes {
         if let Some(quote) = quote.as_deref().filter(|quote| !quote.is_empty()) {
             text.push_str(&format!("  - {label}: “{quote}”\n"));

@@ -7,14 +7,14 @@ use serde::Serialize;
 
 use crate::analysis::jingle::Jingles;
 use crate::analysis::{Envelope, episode_analysis, episode_envelope};
-use crate::labels::{closing, opening, parts};
 use crate::commands::Context;
 use crate::config::{EpisodeName, SegmentKind, ShowConfig};
 use crate::error::CliError;
 use crate::labels::also_cut::AlsoCut;
-use crate::labels::record::{LabeledSegment, LabeledUnit, Labels};
 use crate::labels::phrases::{self, Spoken};
+use crate::labels::record::{LabeledSegment, LabeledUnit, Labels};
 use crate::labels::refine::{self, Anchors, Gap, Policy, Search};
+use crate::labels::{closing, opening, parts};
 use crate::library::{Episode, ShowLibrary};
 use crate::plan::{Chapter, Cut, Plan, PlanEpisode};
 use crate::timecode::Time;
@@ -78,7 +78,8 @@ pub fn draft(
         }
         let dropped = Dropped { kinds: &show.segments, episode: &episode.id, also: also_cut };
         low_confidence.extend(uncertain_segments(&labels, &dropped));
-        let drafted = plan_episode(&library, show, &recordings, episode, position == 0, &labels, also_cut)?;
+        let drafted =
+            plan_episode(&library, show, &recordings, episode, position == 0, &labels, also_cut)?;
         warnings.extend(unplaced(&recordings, &drafted, &episode.id));
         planned.push(drafted.episode);
     }
@@ -153,7 +154,8 @@ fn plan_episode(
         cuts = closing::with_outro(cuts, outro);
     }
     let cuts = tidy(cuts, duration);
-    let name = EpisodeName { title: &episode.title, season: episode.season, episode: episode.number };
+    let name =
+        EpisodeName { title: &episode.title, season: episode.season, episode: episode.number };
     let laid_out = show.chapters.as_ref().map(|scheme| parts::chapters(scheme, &name, &cuts));
     let bumper = recordings.bumpers.ending_of(&audio, duration)?;
     let cuts = match &bumper {
@@ -166,7 +168,13 @@ fn plan_episode(
         None => (chapters(labels, &dropped, &cuts, &episode.title), None),
     };
     let closed_by_recording = outro.is_some() || bumper.is_some();
-    let episode = PlanEpisode { id: episode.id.clone(), cuts, chapters, interstitial_after: bumper.is_none(), note: None };
+    let episode = PlanEpisode {
+        id: episode.id.clone(),
+        cuts,
+        chapters,
+        interstitial_after: bumper.is_none(),
+        note: None,
+    };
     Ok(Drafted { episode, opened_by_theme: theme.is_some(), closed_by_recording, unfit_layout })
 }
 
@@ -204,22 +212,36 @@ impl Dropped<'_> {
     fn anchors(&self, label: &str, bounds: (f64, f64), spoken: &[Spoken]) -> Anchors {
         let Some(kind) = self.kind(label) else { return Anchors::default() };
         let start_after = phrases::start_after(spoken, &kind.after_phrases, bounds.0);
-        let end_before = phrases::end_before(spoken, &kind.before_phrases, start_after.unwrap_or(bounds.0), bounds.1);
+        let end_before = phrases::end_before(
+            spoken,
+            &kind.before_phrases,
+            start_after.unwrap_or(bounds.0),
+            bounds.1,
+        );
         Anchors { start_after, end_before }
     }
 }
 
-fn cuts(labels: &Labels, dropped: &Dropped<'_>, gaps: &[Gap], spoken: &[Spoken], envelope: &Envelope) -> Vec<Cut> {
+fn cuts(
+    labels: &Labels,
+    dropped: &Dropped<'_>,
+    gaps: &[Gap],
+    spoken: &[Spoken],
+    envelope: &Envelope,
+) -> Vec<Cut> {
     let mut cuts: Vec<Cut> = Vec::new();
     let last = labels.segments.len().saturating_sub(1);
-    for (index, segment) in labels.segments.iter().enumerate().filter(|(_, segment)| dropped.cut(segment)) {
+    for (index, segment) in
+        labels.segments.iter().enumerate().filter(|(_, segment)| dropped.cut(segment))
+    {
         let bounds = (segment.start.seconds(), segment.end.seconds());
         let search = Search {
             around_start: neighbourhood(&labels.units, bounds.0),
             around_end: neighbourhood(&labels.units, bounds.1),
         };
         let anchors = dropped.anchors(&segment.label, bounds, spoken);
-        let mut edges = refine::refine(bounds, dropped.policy(&segment.label), anchors, search, gaps, envelope);
+        let mut edges =
+            refine::refine(bounds, dropped.policy(&segment.label), anchors, search, gaps, envelope);
         // Nothing follows the episode's last segment for its end edge to spare: a word heard
         // inside it (Whisper hears "you" in closing music) is not the hosts coming back.
         if index == last {
@@ -280,7 +302,12 @@ fn join(previous: &mut Cut, next: Cut) {
 /// One chapter per kept segment, neighbours with the same title merged, no chapter inside a cut,
 /// and a segment that starts just after a break starting at the break. Chapter readers show no
 /// hierarchy, so each title names its episode after its segment ("Guest: <episode>").
-fn chapters(labels: &Labels, dropped: &Dropped<'_>, cuts: &[Cut], episode_title: &str) -> Vec<Chapter> {
+fn chapters(
+    labels: &Labels,
+    dropped: &Dropped<'_>,
+    cuts: &[Cut],
+    episode_title: &str,
+) -> Vec<Chapter> {
     let mut chapters: Vec<Chapter> = Vec::new();
     for segment in labels.segments.iter().filter(|segment| !dropped.cut(segment)) {
         let Some(title) = dropped.title(&segment.label) else {
@@ -308,7 +335,10 @@ fn chapters(labels: &Labels, dropped: &Dropped<'_>, cuts: &[Cut], episode_title:
 fn starting_at_breaks(mut chapters: Vec<Chapter>, cuts: &[Cut]) -> Vec<Chapter> {
     for cut in cuts {
         let Some(resumes) = cut.end.map(Time::seconds) else { continue };
-        let Some(next) = chapters.iter().position(|chapter| chapter.start.seconds() > resumes) else { continue };
+        let Some(next) = chapters.iter().position(|chapter| chapter.start.seconds() > resumes)
+        else {
+            continue;
+        };
         let carries_on = next > 0 && chapters[next - 1].start.seconds() < cut.start.seconds();
         if carries_on && chapters[next].start.seconds() - resumes <= BREAK_REACH_SECONDS {
             chapters[next].start = Time(resumes);
@@ -340,7 +370,10 @@ fn neighbourhood(units: &[LabeledUnit], time: f64) -> (f64, f64) {
         return (time, time);
     };
     let index = units.iter().position(|unit| unit.end.seconds() >= time).unwrap_or(last);
-    let span = (units[index.saturating_sub(1)].start.seconds(), units[(index + 1).min(last)].end.seconds());
+    let span = (
+        units[index.saturating_sub(1)].start.seconds(),
+        units[(index + 1).min(last)].end.seconds(),
+    );
     (span.0.min(time - LEAST_SEARCH_SECONDS), span.1.max(time + LEAST_SEARCH_SECONDS))
 }
 
@@ -351,7 +384,8 @@ fn uncertain_segments<'a>(
     dropped: &'a Dropped<'a>,
 ) -> impl Iterator<Item = Uncertain> + 'a {
     let at_stake = |segment: &&LabeledSegment| {
-        dropped.kind(&segment.label).is_some_and(|kind| kind.cut) || dropped.also.contains(dropped.episode, &segment.label)
+        dropped.kind(&segment.label).is_some_and(|kind| kind.cut)
+            || dropped.also.contains(dropped.episode, &segment.label)
     };
     labels.segments.iter().filter(|segment| crate::labels::uncertain(segment)).filter(at_stake).map(
         move |segment: &LabeledSegment| Uncertain {
@@ -406,12 +440,25 @@ mod tests {
 
     #[test]
     fn a_segment_that_begins_just_after_a_break_starts_at_the_break() {
-        let chapter = |start: f64, title: &str| Chapter { start: Time(start), title: title.into(), description: None };
+        let chapter = |start: f64, title: &str| Chapter {
+            start: Time(start),
+            title: title.into(),
+            description: None,
+        };
         // Hosts until a break at 1569-1604 s; they chat for 201 s before the guest arrives. The
         // second break ends where the hosts' wrap-up begins; their plug comes 14 minutes later.
-        let chapters = vec![chapter(57.0, "Hosts"), chapter(1805.0, "Guest"), chapter(4689.0, "Hosts"), chapter(5541.0, "Plug")];
-        let cuts = [cut(0.0, 57.0, "opening"), cut(1569.0, 1604.0, "ad"), cut(4588.0, 4689.0, "ad")];
-        let starts: Vec<f64> = starting_at_breaks(chapters, &cuts).iter().map(|chapter| chapter.start.seconds()).collect();
+        let chapters = vec![
+            chapter(57.0, "Hosts"),
+            chapter(1805.0, "Guest"),
+            chapter(4689.0, "Hosts"),
+            chapter(5541.0, "Plug"),
+        ];
+        let cuts =
+            [cut(0.0, 57.0, "opening"), cut(1569.0, 1604.0, "ad"), cut(4588.0, 4689.0, "ad")];
+        let starts: Vec<f64> = starting_at_breaks(chapters, &cuts)
+            .iter()
+            .map(|chapter| chapter.start.seconds())
+            .collect();
         assert_eq!(starts, [57.0, 1604.0, 4689.0, 5541.0]);
     }
 }

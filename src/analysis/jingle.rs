@@ -49,7 +49,8 @@ impl Jingles {
         let mut recordings = Vec::with_capacity(paths.len());
         for path in paths {
             if !path.is_file() {
-                let missing = CliError::precondition(format!("recording {} does not exist", path.display()));
+                let missing =
+                    CliError::precondition(format!("recording {} does not exist", path.display()));
                 return Err(missing.hint("supercut config validate").into());
             }
             let samples = decode_window(path, 0.0, MAX_RECORDING_SECONDS, RATE, 1)
@@ -96,7 +97,10 @@ impl Jingles {
         let from = from.max(0.0);
         let mut window = decode_window(audio, from, to - from, RATE, 1)?;
         window.resize(window.len() + (PAST_THE_END_SECONDS * f64::from(RATE)) as usize, 0.0);
-        let found = self.recordings.iter().filter_map(|(path, recording)| locate(path, recording, &window, from));
+        let found = self
+            .recordings
+            .iter()
+            .filter_map(|(path, recording)| locate(path, recording, &window, from));
         Ok(found.max_by(prefer))
     }
 }

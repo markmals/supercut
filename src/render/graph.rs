@@ -16,7 +16,12 @@ const BEEP_LEAD_MS: u32 = 350;
 ///
 /// Every piece is its own input with its own seek: ffmpeg's input seeking is sample accurate when
 /// it transcodes, and one input per piece keeps hour-long episodes streaming instead of buffered.
-pub fn encode_args(pieces: &[Piece], format: &OutputFormat, limit_db: f64, output: &Path) -> Vec<OsString> {
+pub fn encode_args(
+    pieces: &[Piece],
+    format: &OutputFormat,
+    limit_db: f64,
+    output: &Path,
+) -> Vec<OsString> {
     let mut args: Vec<OsString> =
         ["-nostdin", "-hide_banner", "-v", "error", "-y"].into_iter().map(OsString::from).collect();
     for piece in pieces {
@@ -63,11 +68,16 @@ fn filter_graph(pieces: &[Piece], format: &OutputFormat, limit_db: f64) -> Strin
     let mut chains: Vec<String> = pieces
         .iter()
         .enumerate()
-        .map(|(index, piece)| format!("[{index}:a:0]{}[p{index}]", piece_filters(piece, format).join(",")))
+        .map(|(index, piece)| {
+            format!("[{index}:a:0]{}[p{index}]", piece_filters(piece, format).join(","))
+        })
         .collect();
     let inputs: String = (0..pieces.len()).map(|index| format!("[p{index}]")).collect();
     chains.push(format!("{inputs}concat=n={}:v=0:a=1[joined]", pieces.len()));
-    chains.push(format!("[joined]alimiter=limit={:.6}:level=false:latency=true[out]", linear(limit_db)));
+    chains.push(format!(
+        "[joined]alimiter=limit={:.6}:level=false:latency=true[out]",
+        linear(limit_db)
+    ));
     chains.join(";")
 }
 
@@ -85,7 +95,11 @@ fn piece_filters(piece: &Piece, format: &OutputFormat) -> Vec<String> {
         filters.push(format!("afade=t=in:st=0:d={:.3}", piece.fade_in));
     }
     if piece.fade_out > 0.0 {
-        filters.push(format!("afade=t=out:st={:.3}:d={:.3}", piece.seconds() - piece.fade_out, piece.fade_out));
+        filters.push(format!(
+            "afade=t=out:st={:.3}:d={:.3}",
+            piece.seconds() - piece.fade_out,
+            piece.fade_out
+        ));
     }
     filters
 }

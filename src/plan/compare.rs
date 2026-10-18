@@ -72,8 +72,16 @@ pub fn compare(a: &Plan, b: &Plan, durations: &BTreeMap<String, f64>) -> Compari
         })
         .collect();
     Comparison {
-        only_in_a: ids_a.iter().filter(|id| !ids_b.contains(id)).map(|id| (*id).to_owned()).collect(),
-        only_in_b: ids_b.iter().filter(|id| !ids_a.contains(id)).map(|id| (*id).to_owned()).collect(),
+        only_in_a: ids_a
+            .iter()
+            .filter(|id| !ids_b.contains(id))
+            .map(|id| (*id).to_owned())
+            .collect(),
+        only_in_b: ids_b
+            .iter()
+            .filter(|id| !ids_a.contains(id))
+            .map(|id| (*id).to_owned())
+            .collect(),
         summary: summarize(&episodes),
         episodes,
     }
@@ -98,13 +106,21 @@ fn compare_episode(id: &str, cuts_a: &[Cut], cuts_b: &[Cut], duration: f64) -> E
         let cut_b = unmatched_b.remove(index);
         matched.push(MatchedCut {
             start_delta: round(cut_b.start.seconds() - cut_a.start.seconds()),
-            end_delta: cut_a.end.zip(cut_b.end).map(|(end_a, end_b)| round(end_b.seconds() - end_a.seconds())),
+            end_delta: cut_a
+                .end
+                .zip(cut_b.end)
+                .map(|(end_a, end_b)| round(end_b.seconds() - end_a.seconds())),
             shared_seconds: round(shared),
             a: span(cut_a, duration),
             b: span(cut_b, duration),
         });
     }
-    EpisodeComparison { id: id.to_owned(), matched, only_in_a, only_in_b: unmatched_b.into_iter().map(|cut| span(cut, duration)).collect() }
+    EpisodeComparison {
+        id: id.to_owned(),
+        matched,
+        only_in_a,
+        only_in_b: unmatched_b.into_iter().map(|cut| span(cut, duration)).collect(),
+    }
 }
 
 fn bounds(cut: &Cut, duration: f64) -> (f64, f64) {
@@ -118,22 +134,34 @@ fn overlap(a: &Cut, b: &Cut, duration: f64) -> f64 {
 
 fn span(cut: &Cut, duration: f64) -> CutSpan {
     let (start, end) = bounds(cut, duration);
-    CutSpan { start: cut.start, end: cut.end, seconds: round(end - start), reason: cut.reason.clone() }
+    CutSpan {
+        start: cut.start,
+        end: cut.end,
+        seconds: round(end - start),
+        reason: cut.reason.clone(),
+    }
 }
 
 fn summarize(episodes: &[EpisodeComparison]) -> Summary {
     let matched = || episodes.iter().flat_map(|episode| &episode.matched);
-    let mut deltas: Vec<f64> =
-        matched().flat_map(|cut| std::iter::once(cut.start_delta.abs()).chain(cut.end_delta.map(f64::abs))).collect();
+    let mut deltas: Vec<f64> = matched()
+        .flat_map(|cut| std::iter::once(cut.start_delta.abs()).chain(cut.end_delta.map(f64::abs)))
+        .collect();
     deltas.sort_by(f64::total_cmp);
-    let unmatched_a: f64 = episodes.iter().flat_map(|episode| &episode.only_in_a).map(|cut| cut.seconds).sum();
-    let unmatched_b: f64 = episodes.iter().flat_map(|episode| &episode.only_in_b).map(|cut| cut.seconds).sum();
+    let unmatched_a: f64 =
+        episodes.iter().flat_map(|episode| &episode.only_in_a).map(|cut| cut.seconds).sum();
+    let unmatched_b: f64 =
+        episodes.iter().flat_map(|episode| &episode.only_in_b).map(|cut| cut.seconds).sum();
     Summary {
         matched: matched().count(),
         only_in_a: episodes.iter().map(|episode| episode.only_in_a.len()).sum(),
         only_in_b: episodes.iter().map(|episode| episode.only_in_b.len()).sum(),
-        seconds_cut_only_by_a: round(unmatched_a + matched().map(|cut| cut.a.seconds - cut.shared_seconds).sum::<f64>()),
-        seconds_cut_only_by_b: round(unmatched_b + matched().map(|cut| cut.b.seconds - cut.shared_seconds).sum::<f64>()),
+        seconds_cut_only_by_a: round(
+            unmatched_a + matched().map(|cut| cut.a.seconds - cut.shared_seconds).sum::<f64>(),
+        ),
+        seconds_cut_only_by_b: round(
+            unmatched_b + matched().map(|cut| cut.b.seconds - cut.shared_seconds).sum::<f64>(),
+        ),
         median_edge_delta: deltas.get(deltas.len() / 2).copied(),
     }
 }
@@ -148,18 +176,42 @@ mod tests {
     use crate::plan::PlanEpisode;
 
     fn cut(start: f64, end: Option<f64>) -> Cut {
-        Cut { start: Time(start), end: end.map(Time), reason: String::new(), fade_out: None, fade_in: None }
+        Cut {
+            start: Time(start),
+            end: end.map(Time),
+            reason: String::new(),
+            fade_out: None,
+            fade_in: None,
+        }
     }
 
     fn plan(cuts: Vec<Cut>) -> Plan {
-        let episode = PlanEpisode { id: "e".into(), cuts, chapters: Vec::new(), interstitial_after: true, note: None };
-        Plan { show: "s".into(), title: "t".into(), output: "o.mp3".into(), interstitial: None, episodes: vec![episode] }
+        let episode = PlanEpisode {
+            id: "e".into(),
+            cuts,
+            chapters: Vec::new(),
+            interstitial_after: true,
+            note: None,
+        };
+        Plan {
+            show: "s".into(),
+            title: "t".into(),
+            output: "o.mp3".into(),
+            interstitial: None,
+            episodes: vec![episode],
+        }
     }
 
     #[test]
     fn pairs_overlapping_cuts_and_counts_what_only_one_side_removes() {
-        let drafted = plan(vec![cut(0.0, Some(53.0)), cut(1763.0, Some(1832.0)), cut(4966.0, Some(5144.0)), cut(5494.0, None)]);
-        let by_hand = plan(vec![cut(0.0, Some(50.5)), cut(1762.5, Some(1830.8)), cut(5502.0, None)]);
+        let drafted = plan(vec![
+            cut(0.0, Some(53.0)),
+            cut(1763.0, Some(1832.0)),
+            cut(4966.0, Some(5144.0)),
+            cut(5494.0, None),
+        ]);
+        let by_hand =
+            plan(vec![cut(0.0, Some(50.5)), cut(1762.5, Some(1830.8)), cut(5502.0, None)]);
         let durations = BTreeMap::from([("e".to_owned(), 5560.0)]);
         let comparison = compare(&drafted, &by_hand, &durations);
         let episode = &comparison.episodes[0];

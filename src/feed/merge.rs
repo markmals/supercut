@@ -45,16 +45,22 @@ pub fn merge(index: &mut EpisodeIndex, items: &[FeedItem]) -> MergeReport {
 /// id, not another episode: refreshing moves the episode to the new id, so a title edit or a
 /// rotated token never duplicates it or strands its download, and an episode the feed still
 /// carries is never taken over by a newcomer.
-fn known<'a>(index: &'a mut EpisodeIndex, item: &FeedItem, incoming: &HashSet<&str>) -> Option<&'a mut Episode> {
-    let position = index.episodes.iter().position(|episode| episode.guid == item.guid).or_else(|| {
-        item.guid.starts_with(FALLBACK_GUID_PREFIX).then_some(())?;
-        index.episodes.iter().position(|episode| {
-            made_up(episode)
-                && !incoming.contains(episode.guid.as_str())
-                && episode.published == item.published
-                && (episode.title == item.title || redacted(&episode.enclosure_url) == redacted(&item.enclosure_url))
-        })
-    })?;
+fn known<'a>(
+    index: &'a mut EpisodeIndex,
+    item: &FeedItem,
+    incoming: &HashSet<&str>,
+) -> Option<&'a mut Episode> {
+    let position =
+        index.episodes.iter().position(|episode| episode.guid == item.guid).or_else(|| {
+            item.guid.starts_with(FALLBACK_GUID_PREFIX).then_some(())?;
+            index.episodes.iter().position(|episode| {
+                made_up(episode)
+                    && !incoming.contains(episode.guid.as_str())
+                    && episode.published == item.published
+                    && (episode.title == item.title
+                        || redacted(&episode.enclosure_url) == redacted(&item.enclosure_url))
+            })
+        })?;
     index.episodes.get_mut(position)
 }
 
@@ -101,11 +107,16 @@ mod tests {
     #[test]
     fn numbers_new_episodes_oldest_first_whatever_the_feed_order() {
         let mut index = EpisodeIndex::default();
-        let items = [item("c", "Third", 3, None), item("a", "First", 1, None), item("b", "Second", 2, None)];
+        let items = [
+            item("c", "Third", 3, None),
+            item("a", "First", 1, None),
+            item("b", "Second", 2, None),
+        ];
         let report = merge(&mut index, &items);
 
         assert_eq!(report.added, ["1970-01-02-first", "1970-01-03-second", "1970-01-04-third"]);
-        let titles: Vec<&str> = index.episodes.iter().map(|episode| episode.title.as_str()).collect();
+        let titles: Vec<&str> =
+            index.episodes.iter().map(|episode| episode.title.as_str()).collect();
         assert_eq!(titles, ["First", "Second", "Third"]);
     }
 
@@ -131,7 +142,8 @@ mod tests {
         let mut index = EpisodeIndex::default();
         let mut later_feed_copy = item("a", "From the second feed", 1, Some(1));
         later_feed_copy.enclosure_url = "https://example.com/other.mp3".into();
-        let report = merge(&mut index, &[item("a", "From the first feed", 1, Some(1)), later_feed_copy]);
+        let report =
+            merge(&mut index, &[item("a", "From the first feed", 1, Some(1)), later_feed_copy]);
 
         assert_eq!(report.added, ["s01e01"]);
         assert_eq!(index.episodes.len(), 1);
@@ -161,14 +173,24 @@ mod tests {
         assert_eq!(index.episodes.len(), 1);
         let episode = &index.episodes[0];
         assert_eq!(episode.audio_file.as_deref(), Some(format!("{}.mp3", episode.id).as_str()));
-        assert!(episode.guid.starts_with("no-guid:") && !episode.guid.contains("token"), "{}", episode.guid);
+        assert!(
+            episode.guid.starts_with("no-guid:") && !episode.guid.contains("token"),
+            "{}",
+            episode.guid
+        );
     }
 
     #[test]
     fn a_guid_less_episode_survives_a_rotated_token_and_a_retitling() {
         let original = guidless("Bonus", 1, "https://example.com/bonus.mp3?token=old");
-        assert_same_episode(resync(guidless("Bonus", 1, "https://example.com/bonus.mp3?token=old"), guidless("Bonus", 1, "https://example.com/bonus.mp3?token=new")));
-        assert_same_episode(resync(original, guidless("Bonus (corrected)", 1, "https://example.com/bonus.mp3?token=old")));
+        assert_same_episode(resync(
+            guidless("Bonus", 1, "https://example.com/bonus.mp3?token=old"),
+            guidless("Bonus", 1, "https://example.com/bonus.mp3?token=new"),
+        ));
+        assert_same_episode(resync(
+            original,
+            guidless("Bonus (corrected)", 1, "https://example.com/bonus.mp3?token=old"),
+        ));
     }
 
     #[test]
@@ -177,17 +199,26 @@ mod tests {
             let mut old = item("unused", "Bonus", 1, None);
             old.guid = old_id.into();
             old.enclosure_url = "https://example.com/bonus.mp3?token=old".into();
-            assert_same_episode(resync(old, guidless("Bonus", 1, "https://example.com/bonus.mp3?token=new")));
+            assert_same_episode(resync(
+                old,
+                guidless("Bonus", 1, "https://example.com/bonus.mp3?token=new"),
+            ));
         }
     }
 
     #[test]
     fn distinct_guid_less_items_stay_apart() {
         let mut index = EpisodeIndex::default();
-        let by_query = [guidless("Part 1", 1, "https://example.com/stream?episode=1"), guidless("Part 2", 1, "https://example.com/stream?episode=2")];
+        let by_query = [
+            guidless("Part 1", 1, "https://example.com/stream?episode=1"),
+            guidless("Part 2", 1, "https://example.com/stream?episode=2"),
+        ];
         assert_eq!(merge(&mut index, &by_query).added.len(), 2);
         let mut index = EpisodeIndex::default();
-        let same_title = [guidless("Bonus", 1, "https://example.com/a.mp3"), guidless("Bonus", 1, "https://example.com/b.mp3")];
+        let same_title = [
+            guidless("Bonus", 1, "https://example.com/a.mp3"),
+            guidless("Bonus", 1, "https://example.com/b.mp3"),
+        ];
         assert_eq!(merge(&mut index, &same_title).added.len(), 2);
     }
 
@@ -198,7 +229,10 @@ mod tests {
         let id = index.episodes[0].id.clone();
         index.episodes[0].audio_file = Some(format!("{id}.mp3"));
         // The feed now carries a second "Bonus" released at the same moment.
-        let both = [guidless("Bonus", 1, "https://example.com/a.mp3"), guidless("Bonus", 1, "https://example.com/b.mp3")];
+        let both = [
+            guidless("Bonus", 1, "https://example.com/a.mp3"),
+            guidless("Bonus", 1, "https://example.com/b.mp3"),
+        ];
         let report = merge(&mut index, &both);
         assert_eq!(report.added.len(), 1, "{:?}", report.added);
         let known = index.get(&id).unwrap();

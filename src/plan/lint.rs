@@ -42,7 +42,8 @@ pub fn lint(resolved: &Resolved) -> anyhow::Result<Vec<String>> {
                 (format!("{label}: the end"), end, Kept::After, cut.fade_in),
             ];
             // A cut from the top of the file or to its end joins nothing there: no splice to lint.
-            let splices = edges.into_iter().filter(|(_, edge, _, _)| *edge > 0.0 && *edge < planned.duration);
+            let splices =
+                edges.into_iter().filter(|(_, edge, _, _)| *edge > 0.0 && *edge < planned.duration);
             for (label, edge, kept, fade) in splices {
                 let edge = Edge { label: &label, time: edge, kept, fade };
                 warnings.extend(mid_word(&edge, transcript.as_ref()));
@@ -61,9 +62,9 @@ struct Edge<'a> {
 }
 
 fn mid_word(edge: &Edge, transcript: Option<&Transcript>) -> Option<String> {
-    let word = transcript?
-        .words_between(edge.time, edge.time)
-        .find(|word| word.start < edge.time - WORD_MARGIN_SECONDS && word.end > edge.time + WORD_MARGIN_SECONDS)?;
+    let word = transcript?.words_between(edge.time, edge.time).find(|word| {
+        word.start < edge.time - WORD_MARGIN_SECONDS && word.end > edge.time + WORD_MARGIN_SECONDS
+    })?;
     Some(format!(
         "{} at {} cuts through a word: `{}` runs {} to {}",
         edge.label,
@@ -93,9 +94,17 @@ fn still_sounding(edge: &Edge, envelope: &Envelope) -> Option<String> {
     if at_lip {
         return None;
     }
-    let mut message = format!("{} at {} is on audio still sounding ({level:.0} dBFS); give it a longer fade", edge.label, Time(edge.time));
+    let mut message = format!(
+        "{} at {} is on audio still sounding ({level:.0} dBFS); give it a longer fade",
+        edge.label,
+        Time(edge.time)
+    );
     if let Some((start, end)) = quiet {
-        message.push_str(&format!(" or move it into the quiet span {} to {}", Time(start), Time(end)));
+        message.push_str(&format!(
+            " or move it into the quiet span {} to {}",
+            Time(start),
+            Time(end)
+        ));
     }
     Some(message)
 }

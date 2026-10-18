@@ -33,7 +33,11 @@ impl Default for TranscriptionConfig {
 impl TranscriptionEngine {
     /// The engine that runs best on this machine: MLX on Apple silicon, faster-whisper elsewhere.
     pub fn native() -> Self {
-        if cfg!(all(target_os = "macos", target_arch = "aarch64")) { Self::MlxWhisper } else { Self::FasterWhisper }
+        if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+            Self::MlxWhisper
+        } else {
+            Self::FasterWhisper
+        }
     }
 
     /// The program supercut runs for this engine.

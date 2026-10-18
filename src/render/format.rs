@@ -4,8 +4,8 @@ use crate::media::Probe;
 
 /// The bit rates an MP3 frame can carry, in bits per second.
 const MP3_BIT_RATES: [u64; 14] = [
-    32_000, 40_000, 48_000, 56_000, 64_000, 80_000, 96_000, 112_000, 128_000, 160_000, 192_000, 224_000, 256_000,
-    320_000,
+    32_000, 40_000, 48_000, 56_000, 64_000, 80_000, 96_000, 112_000, 128_000, 160_000, 192_000,
+    224_000, 256_000, 320_000,
 ];
 
 /// What the rendered file is encoded as: the sources' own format, so nothing is resampled or
@@ -26,7 +26,11 @@ impl OutputFormat {
             .filter_map(|probe| probe.bit_rate)
             .max()
             .context("no episode states its bit rate; cannot pick the output bit rate")?;
-        Ok(Self { sample_rate: first.sample_rate, channels: first.channels.clamp(1, 2), bit_rate: snap(bit_rate) })
+        Ok(Self {
+            sample_rate: first.sample_rate,
+            channels: first.channels.clamp(1, 2),
+            bit_rate: snap(bit_rate),
+        })
     }
 
     pub fn layout(&self) -> &'static str {
@@ -64,8 +68,11 @@ mod tests {
 
     #[test]
     fn takes_rate_and_channels_from_the_first_episode_and_the_highest_bit_rate() {
-        let format =
-            OutputFormat::from_probes(&[probe(44_100, 2, Some(128_000)), probe(48_000, 1, Some(192_000))]).unwrap();
+        let format = OutputFormat::from_probes(&[
+            probe(44_100, 2, Some(128_000)),
+            probe(48_000, 1, Some(192_000)),
+        ])
+        .unwrap();
         assert_eq!((format.sample_rate, format.channels, format.bit_rate), (44_100, 2, 192_000));
     }
 

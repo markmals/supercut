@@ -50,7 +50,8 @@ pub fn best_non_overlapping<T>(mut runs: Vec<(T, Run)>) -> Vec<(T, Run)> {
     runs.sort_by(|a, b| b.1.quality().total_cmp(&a.1.quality()));
     let mut kept: Vec<(T, Run)> = Vec::new();
     for (tag, run) in runs {
-        let claimed: Vec<(usize, usize)> = kept.iter().map(|(_, run)| (run.export_start, run.export_end())).collect();
+        let claimed: Vec<(usize, usize)> =
+            kept.iter().map(|(_, run)| (run.export_start, run.export_end())).collect();
         if let Some(run) = unclaimed_part(run, &claimed) {
             kept.push((tag, run));
         }
@@ -119,7 +120,8 @@ fn key(item: u32) -> usize {
 fn is_local_peak(votes: &[u32], index: usize) -> bool {
     let low = index.saturating_sub(2);
     let high = (index + 3).min(votes.len());
-    votes[low..high].iter().all(|&other| other <= votes[index]) && (low..index).all(|i| votes[i] < votes[index])
+    votes[low..high].iter().all(|&other| other <= votes[index])
+        && (low..index).all(|i| votes[i] < votes[index])
 }
 
 /// Matching stretches along one offset.
@@ -148,7 +150,8 @@ fn runs_on_diagonal(source: &[u32], export: &[u32], offset: isize) -> Vec<Run> {
                     source_start,
                     export_start: (source_start as isize + offset) as usize,
                     len: position - begin,
-                    bit_errors: errors[begin..position].iter().sum::<f32>() / (position - begin) as f32,
+                    bit_errors: errors[begin..position].iter().sum::<f32>()
+                        / (position - begin) as f32,
                 });
             }
             _ => {}
@@ -181,7 +184,9 @@ mod tests {
         let mut state = seed;
         (0..len)
             .map(|_| {
-                state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+                state = state
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
                 (state >> 32) as u32
             })
             .collect()
@@ -199,9 +204,15 @@ mod tests {
         let runs = find_runs(&source, &export);
         assert_eq!(runs.len(), 2, "{runs:?}");
         let (first, second) = (runs[0], runs[1]);
-        assert!(first.source_start.abs_diff(100) <= 6 && first.export_start.abs_diff(0) <= 6, "{first:?}");
+        assert!(
+            first.source_start.abs_diff(100) <= 6 && first.export_start.abs_diff(0) <= 6,
+            "{first:?}"
+        );
         assert!(first.len.abs_diff(400) <= 12, "{first:?}");
-        assert!(second.source_start.abs_diff(900) <= 6 && second.export_start.abs_diff(550) <= 6, "{second:?}");
+        assert!(
+            second.source_start.abs_diff(900) <= 6 && second.export_start.abs_diff(550) <= 6,
+            "{second:?}"
+        );
         assert!((second.bit_errors - 3.0).abs() < 1.0, "{second:?}");
     }
 

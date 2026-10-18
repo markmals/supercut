@@ -89,7 +89,10 @@ pub fn adopt(
 }
 
 /// Where each episode still waiting for audio sits in the index, by normalized title.
-fn episodes_wanting_audio(library: &ShowLibrary, index: &EpisodeIndex) -> BTreeMap<String, Vec<usize>> {
+fn episodes_wanting_audio(
+    library: &ShowLibrary,
+    index: &EpisodeIndex,
+) -> BTreeMap<String, Vec<usize>> {
     let mut wanted: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for (position, episode) in index.episodes.iter().enumerate() {
         if !has_audio(library, episode) {
@@ -101,7 +104,10 @@ fn episodes_wanting_audio(library: &ShowLibrary, index: &EpisodeIndex) -> BTreeM
 
 /// Files grouped by the normalized title in their tags. Untitled files cannot be matched, so
 /// they go straight to the report.
-fn files_by_title(files: &[PathBuf], report: &mut AdoptReport) -> anyhow::Result<BTreeMap<String, Vec<PathBuf>>> {
+fn files_by_title(
+    files: &[PathBuf],
+    report: &mut AdoptReport,
+) -> anyhow::Result<BTreeMap<String, Vec<PathBuf>>> {
     let mut by_title: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
     for file in files {
         match tags::title(file)? {
@@ -113,7 +119,8 @@ fn files_by_title(files: &[PathBuf], report: &mut AdoptReport) -> anyhow::Result
 }
 
 fn ambiguous(index: &EpisodeIndex, positions: &[usize], files: &[PathBuf]) -> Vec<Ambiguous> {
-    let ids: Vec<String> = positions.iter().map(|position| index.episodes[*position].id.clone()).collect();
+    let ids: Vec<String> =
+        positions.iter().map(|position| index.episodes[*position].id.clone()).collect();
     files.iter().map(|file| Ambiguous { file: shown(file), ids: ids.clone() }).collect()
 }
 
@@ -134,7 +141,8 @@ fn adopt_one(
     }
     let name = format!("{}.{}", episode.id, extension(file));
     let audio_dir = library.audio_dir();
-    std::fs::create_dir_all(&audio_dir).with_context(|| format!("creating {}", audio_dir.display()))?;
+    std::fs::create_dir_all(&audio_dir)
+        .with_context(|| format!("creating {}", audio_dir.display()))?;
     let method = link_or_copy(file, &audio_dir.join(&name))?;
     episode.audio_file = Some(name);
     Ok(Ok(method))

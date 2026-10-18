@@ -43,7 +43,11 @@ pub fn utterances_per_boundary(utterances: usize, duration: f64) -> usize {
 pub type Region = (f64, f64);
 
 /// Fine units inside the regions, coarse units everywhere else, in order.
-pub fn mixed(coarse: &[LabeledUnit], fine: Vec<LabeledUnit>, regions: &[Region]) -> Vec<LabeledUnit> {
+pub fn mixed(
+    coarse: &[LabeledUnit],
+    fine: Vec<LabeledUnit>,
+    regions: &[Region],
+) -> Vec<LabeledUnit> {
     let kept = coarse.iter().filter(|unit| !covered(regions, unit)).cloned();
     let mut units: Vec<LabeledUnit> = kept.chain(fine).collect();
     units.sort_by(|a, b| a.start.seconds().total_cmp(&b.start.seconds()));
@@ -52,9 +56,7 @@ pub fn mixed(coarse: &[LabeledUnit], fine: Vec<LabeledUnit>, regions: &[Region])
 
 /// Does the fine pass take this window over?
 fn covered(regions: &[Region], unit: &LabeledUnit) -> bool {
-    regions
-        .iter()
-        .any(|(start, end)| unit.end.seconds() > *start && unit.start.seconds() < *end)
+    regions.iter().any(|(start, end)| unit.end.seconds() > *start && unit.start.seconds() < *end)
 }
 
 /// Grows `span` to the ends of the coarse windows it touches.

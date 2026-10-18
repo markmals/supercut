@@ -46,9 +46,7 @@ fn pause_after(words: &[&Word], index: usize) -> f64 {
 fn nearest_to_target(words: &[&Word], first: usize) -> usize {
     let target = words[first].start + TARGET_SECONDS;
     let distance = |index: &usize| (words[*index].end - target).abs();
-    (first..words.len() - 1)
-        .min_by(|a, b| distance(a).total_cmp(&distance(b)))
-        .unwrap_or(first)
+    (first..words.len() - 1).min_by(|a, b| distance(a).total_cmp(&distance(b))).unwrap_or(first)
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
-pub mod recover;
 pub mod get;
 pub mod list;
+pub mod recover;
 
 use clap::Subcommand;
 

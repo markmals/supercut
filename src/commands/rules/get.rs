@@ -35,6 +35,7 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
             .hint(format!("write them in {}", path.display()));
         return Err(error.into());
     }
-    let rules = std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+    let rules =
+        std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
     print_json(&Rules { show: &args.show, path, rules })
 }

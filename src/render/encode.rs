@@ -16,8 +16,10 @@ pub fn run(args: &[OsString], total_seconds: f64, label: &str) -> anyhow::Result
         .stderr(Stdio::inherit())
         .spawn()
         .map_err(|error| {
-            anyhow::Error::new(error)
-                .context(CliError::new(ErrorCode::ExternalTool, "could not run ffmpeg").hint("install ffmpeg"))
+            anyhow::Error::new(error).context(
+                CliError::new(ErrorCode::ExternalTool, "could not run ffmpeg")
+                    .hint("install ffmpeg"),
+            )
         })?;
 
     let progress = child.stdout.take().expect("stdout is piped");
@@ -27,8 +29,9 @@ pub fn run(args: &[OsString], total_seconds: f64, label: &str) -> anyhow::Result
     if status.success() {
         return Ok(());
     }
-    let failure = CliError::new(ErrorCode::ExternalTool, format!("ffmpeg failed while {label} ({status})"))
-        .hint("ffmpeg logged the reason on stderr");
+    let failure =
+        CliError::new(ErrorCode::ExternalTool, format!("ffmpeg failed while {label} ({status})"))
+            .hint("ffmpeg logged the reason on stderr");
     Err(failure.into())
 }
 
@@ -38,10 +41,13 @@ fn report(progress: impl BufRead, total_seconds: f64, label: &str) {
     let terminal = std::io::stderr().is_terminal();
     let mut percent = 0;
     for line in progress.lines().map_while(Result::ok) {
-        let Some(microseconds) = line.strip_prefix("out_time_us=").and_then(|value| value.parse::<i64>().ok()) else {
+        let Some(microseconds) =
+            line.strip_prefix("out_time_us=").and_then(|value| value.parse::<i64>().ok())
+        else {
             continue;
         };
-        let done = (microseconds as f64 / 1_000_000.0 / total_seconds * 100.0).clamp(0.0, 100.0) as u32;
+        let done =
+            (microseconds as f64 / 1_000_000.0 / total_seconds * 100.0).clamp(0.0, 100.0) as u32;
         if done == percent {
             continue;
         }

@@ -63,7 +63,10 @@ fn plays() -> bool {
     true
 }
 
-#[expect(clippy::trivially_copy_pass_by_ref, reason = "serde's skip_serializing_if passes a reference")]
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde's skip_serializing_if passes a reference"
+)]
 fn is_played(after: &bool) -> bool {
     *after
 }
@@ -101,7 +104,8 @@ impl Plan {
                 .hint("supercut plans draft <show> <episode ids...>");
             return Err(missing.into());
         }
-        crate::library::read_json(path)
-            .map_err(|error| error.context(CliError::invalid(format!("{} is not a cut plan", path.display()))))
+        crate::library::read_json(path).map_err(|error| {
+            error.context(CliError::invalid(format!("{} is not a cut plan", path.display())))
+        })
     }
 }

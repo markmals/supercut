@@ -53,7 +53,12 @@ impl EpisodeIndex {
 
     /// Episodes chosen on the command line: explicit ids in the given order, or a whole season
     /// (bonus episodes the feed files under that season included), or everything.
-    pub fn select(&self, ids: &[String], season: Option<u32>, all: bool) -> anyhow::Result<Vec<&Episode>> {
+    pub fn select(
+        &self,
+        ids: &[String],
+        season: Option<u32>,
+        all: bool,
+    ) -> anyhow::Result<Vec<&Episode>> {
         if !ids.is_empty() {
             return ids.iter().map(|id| self.get(id)).collect();
         }
@@ -72,7 +77,13 @@ impl EpisodeIndex {
     }
 
     /// An id for a new episode that no existing episode uses.
-    pub fn new_id(&self, season: Option<u32>, number: Option<u32>, published: Timestamp, title: &str) -> String {
+    pub fn new_id(
+        &self,
+        season: Option<u32>,
+        number: Option<u32>,
+        published: Timestamp,
+        title: &str,
+    ) -> String {
         let base = match (season, number) {
             (Some(season), Some(number)) => format!("s{season:02}e{number:02}"),
             (None, Some(number)) => format!("e{number:03}"),
@@ -132,9 +143,15 @@ mod tests {
         let published: Timestamp = "2026-03-27T04:00:00Z".parse().unwrap();
         let mut index = EpisodeIndex::default();
         let title = "BONUS ROOM #31: Season 10 Pre-Season Retreat";
-        assert_eq!(index.new_id(None, None, published, title), "2026-03-27-bonus-room-31-season-10");
+        assert_eq!(
+            index.new_id(None, None, published, title),
+            "2026-03-27-bonus-room-31-season-10"
+        );
         index.episodes.push(episode("2026-03-27-bonus-room-31-season-10"));
-        assert_eq!(index.new_id(None, None, published, title), "2026-03-27-bonus-room-31-season-10-2");
+        assert_eq!(
+            index.new_id(None, None, published, title),
+            "2026-03-27-bonus-room-31-season-10-2"
+        );
         assert_eq!(index.new_id(Some(10), Some(1), published, title), "s10e01");
     }
 }

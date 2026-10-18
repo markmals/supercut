@@ -73,7 +73,8 @@ pub struct LabeledSegment {
 
 impl Labels {
     pub fn load(path: &Path) -> anyhow::Result<Self> {
-        crate::library::read_json(path).with_context(|| format!("loading labels {}", path.display()))
+        crate::library::read_json(path)
+            .with_context(|| format!("loading labels {}", path.display()))
     }
 
     pub fn save(&self, path: &Path) -> anyhow::Result<()> {
@@ -86,7 +87,9 @@ impl Labels {
     pub fn matches(&self, kinds: &[SegmentKind]) -> bool {
         !self.units.is_empty()
             && self.kinds.len() == kinds.len()
-            && self.kinds.iter().zip(kinds).all(|(stored, current)| stored.label == current.label && stored.describe == current.describe)
+            && self.kinds.iter().zip(kinds).all(|(stored, current)| {
+                stored.label == current.label && stored.describe == current.describe
+            })
     }
 }
 

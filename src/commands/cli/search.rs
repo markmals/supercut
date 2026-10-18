@@ -24,7 +24,10 @@ struct Match {
     example: &'static str,
 }
 
-const STOP_WORDS: &[&str] = &["a", "an", "the", "of", "to", "for", "in", "on", "my", "i", "and", "or", "from", "with", "it", "is", "be", "do", "how", "what", "want", "can", "out"];
+const STOP_WORDS: &[&str] = &[
+    "a", "an", "the", "of", "to", "for", "in", "on", "my", "i", "and", "or", "from", "with", "it",
+    "is", "be", "do", "how", "what", "want", "can", "out",
+];
 
 pub fn run(_context: &Context, args: Args) -> anyhow::Result<()> {
     let matches = search(&args.query.join(" "), args.limit);
@@ -53,12 +56,26 @@ fn search(query: &str, limit: usize) -> Vec<Match> {
 
 /// Each query term scores the weight of the most telling field it appears in.
 fn score(wanted: &[String], path: &str, command: &clap::Command) -> u32 {
-    let keywords = registry::find(path).map(|operation| operation.keywords.join(" ")).unwrap_or_default();
-    let arguments: Vec<String> = command.get_arguments().filter_map(|arg| arg.get_help().map(ToString::to_string)).collect();
-    let fields = [(terms(path), 4), (terms(&keywords), 3), (terms(&about(command)), 2), (terms(&arguments.join(" ")), 1)];
+    let keywords =
+        registry::find(path).map(|operation| operation.keywords.join(" ")).unwrap_or_default();
+    let arguments: Vec<String> =
+        command.get_arguments().filter_map(|arg| arg.get_help().map(ToString::to_string)).collect();
+    let fields = [
+        (terms(path), 4),
+        (terms(&keywords), 3),
+        (terms(&about(command)), 2),
+        (terms(&arguments.join(" ")), 1),
+    ];
     wanted
         .iter()
-        .map(|term| fields.iter().filter(|(field, _)| field.contains(term)).map(|(_, weight)| *weight).max().unwrap_or(0))
+        .map(|term| {
+            fields
+                .iter()
+                .filter(|(field, _)| field.contains(term))
+                .map(|(_, weight)| *weight)
+                .max()
+                .unwrap_or(0)
+        })
         .sum()
 }
 

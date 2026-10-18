@@ -1,7 +1,7 @@
 pub mod align;
 mod envelope;
-pub mod moment;
 pub mod jingle;
+pub mod moment;
 
 use std::path::Path;
 use std::process::Command;
@@ -92,7 +92,8 @@ pub fn analyze_file(path: &Path) -> anyhow::Result<(AudioAnalysis, Envelope)> {
     let analysis = AudioAnalysis {
         probe,
         duration: decoded_samples as f64 / f64::from(ENVELOPE_SAMPLE_RATE),
-        loudness: parse_ebur128_summary(&log).with_context(|| format!("measuring loudness of {}", path.display()))?,
+        loudness: parse_ebur128_summary(&log)
+            .with_context(|| format!("measuring loudness of {}", path.display()))?,
     };
     Ok((analysis, Envelope::from_mean_squares(mean_squares)))
 }

@@ -129,8 +129,10 @@ mod tests {
 
     #[test]
     fn code_and_hint_survive_added_context() {
-        let error = anyhow::Error::from(CliError::not_found("no episode `s10e99`").hint("supercut episodes list x"))
-            .context("loading plan");
+        let error = anyhow::Error::from(
+            CliError::not_found("no episode `s10e99`").hint("supercut episodes list x"),
+        )
+        .context("loading plan");
         let report = ErrorReport::from_anyhow(&error);
         assert_eq!(report.code, ErrorCode::NotFound);
         assert_eq!(report.message, "loading plan: no episode `s10e99`");

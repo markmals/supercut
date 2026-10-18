@@ -82,8 +82,8 @@ pub fn interstitial_path<'a>(show: &'a ShowConfig, plan: &'a Plan) -> Option<&'a
 
 fn interstitial_clip(path: Option<&Path>) -> anyhow::Result<Option<Clip>> {
     let Some(path) = path else { return Ok(None) };
-    let (analysis, _) =
-        analysis::analyze_file(path).with_context(|| format!("measuring the interstitial {}", path.display()))?;
+    let (analysis, _) = analysis::analyze_file(path)
+        .with_context(|| format!("measuring the interstitial {}", path.display()))?;
     Ok(Some(Clip {
         audio: path.to_path_buf(),
         duration: analysis.duration,

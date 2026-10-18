@@ -103,14 +103,22 @@ fn push_gap(gaps: &mut Vec<Gap>, start: f64, end: f64) {
 /// policy asks, with fades where the audio at an edge is still playing. An anchored edge uses
 /// the first pause after its phrase (the hosts finish their sentence) or the last pause before
 /// it; the others the best-fencing pause near the label.
-pub fn refine(bounds: (f64, f64), policy: Policy, anchors: Anchors, search: Search, gaps: &[Gap], envelope: &Envelope) -> Edges {
+pub fn refine(
+    bounds: (f64, f64),
+    policy: Policy,
+    anchors: Anchors,
+    search: Search,
+    gaps: &[Gap],
+    envelope: &Envelope,
+) -> Edges {
     let before_end = |gap: &&Gap| gap.middle() < bounds.1;
     let after_start = |gap: &&Gap| gap.middle() > bounds.0;
     // Nothing is kept before a segment that opens the episode: cut from the top of the file.
     let start = if bounds.0 <= PADDING_SECONDS {
         0.0
     } else if let Some(phrase_end) = anchors.start_after {
-        first_pause_after(gaps, phrase_end).map_or(phrase_end + PADDING_SECONDS, |gap| cut_start(*gap, policy.start, envelope))
+        first_pause_after(gaps, phrase_end)
+            .map_or(phrase_end + PADDING_SECONDS, |gap| cut_start(*gap, policy.start, envelope))
     } else {
         match best_gap(gaps, bounds.0, search.around_start, before_end, envelope) {
             Some(gap) => cut_start(*gap, policy.start, envelope),
@@ -118,7 +126,8 @@ pub fn refine(bounds: (f64, f64), policy: Policy, anchors: Anchors, search: Sear
         }
     };
     let end = if let Some(phrase_start) = anchors.end_before {
-        last_pause_before(gaps, phrase_start).map_or(phrase_start - PADDING_SECONDS, |gap| cut_end(*gap, policy.end, envelope))
+        last_pause_before(gaps, phrase_start)
+            .map_or(phrase_start - PADDING_SECONDS, |gap| cut_end(*gap, policy.end, envelope))
     } else {
         match best_gap(gaps, bounds.1, search.around_end, after_start, envelope) {
             Some(gap) => cut_end(*gap, policy.end, envelope),
@@ -150,7 +159,8 @@ fn cut_start(gap: Gap, policy: CutStart, envelope: &Envelope) -> f64 {
     match policy {
         CutStart::AfterPreviousSpeech => {
             let earliest = (gap.start + PADDING_SECONDS).min(gap.end);
-            let latest = (earliest + VOICE_TAIL_SECONDS).min(gap.end - PADDING_SECONDS).max(earliest);
+            let latest =
+                (earliest + VOICE_TAIL_SECONDS).min(gap.end - PADDING_SECONDS).max(earliest);
             quietest(envelope, earliest, latest)
         }
         CutStart::BeforeOwnSpeech => {
@@ -192,7 +202,12 @@ fn edges(start: f64, end: f64, gaps: &[Gap], envelope: &Envelope) -> Edges {
         let voice_starts = envelope.first_above(end, gap.end, louder(end)).unwrap_or(gap.end);
         voice_starts.min(gap.end) - end
     });
-    Edges { start, end, fade_out: fade(start, room_before, envelope), fade_in: fade(end, room_after, envelope) }
+    Edges {
+        start,
+        end,
+        fade_out: fade(start, room_before, envelope),
+        fade_in: fade(end, room_after, envelope),
+    }
 }
 
 fn gap_around(gaps: &[Gap], time: f64) -> Option<&Gap> {
@@ -202,7 +217,9 @@ fn gap_around(gaps: &[Gap], time: f64) -> Option<&Gap> {
 /// Audio that is still playing at an edge needs a fade, one no longer than the `room` before
 /// the nearest voice so it never fades one; a silent edge splices cleanly.
 fn fade(time: f64, room: Option<f64>, envelope: &Envelope) -> Option<f64> {
-    let seconds = room.map_or(LOUD_EDGE_FADE_SECONDS, |room| room.clamp(EDGE_FADE_SECONDS, LOUD_EDGE_FADE_SECONDS));
+    let seconds = room.map_or(LOUD_EDGE_FADE_SECONDS, |room| {
+        room.clamp(EDGE_FADE_SECONDS, LOUD_EDGE_FADE_SECONDS)
+    });
     (envelope.level_at(time) > QUIET_DB).then_some(seconds)
 }
 
@@ -216,7 +233,8 @@ fn best_gap<'a>(
     envelope: &Envelope,
 ) -> Option<&'a Gap> {
     let score = |gap: &Gap| {
-        let music = if envelope.mean_db(gap.start, gap.end) > QUIET_DB { MUSIC_WEIGHT } else { 1.0 };
+        let music =
+            if envelope.mean_db(gap.start, gap.end) > QUIET_DB { MUSIC_WEIGHT } else { 1.0 };
         gap.seconds() * music - PROXIMITY_WEIGHT * (gap.middle() - boundary).abs()
     };
     gaps.iter()
@@ -294,7 +312,14 @@ mod tests {
         let (transcript, envelope) = ad_episode();
         let gaps = gaps(&transcript, 260.0);
         // The labels put the ad a few seconds off on each side.
-        let edges = refine((97.0, 163.0), Policy::default(), Anchors::default(), around_the_ad(), &gaps, &envelope);
+        let edges = refine(
+            (97.0, 163.0),
+            Policy::default(),
+            Anchors::default(),
+            around_the_ad(),
+            &gaps,
+            &envelope,
+        );
         assert!((edges.start - 100.0).abs() < 1e-6, "cut starts at {}", edges.start);
         assert!((edges.end - 159.9).abs() < 1e-6, "cut ends at {}", edges.end);
     }
@@ -302,10 +327,18 @@ mod tests {
     #[test]
     fn a_long_pause_well_past_the_boundary_does_not_pull_the_cut_into_the_hosts() {
         // The hosts are back at 160 s; at 175 s one of them pauses for four seconds.
-        let transcript = transcript(&[(0.0, 100.0), (102.0, 158.0), (160.0, 175.0), (179.0, 260.0)]);
+        let transcript =
+            transcript(&[(0.0, 100.0), (102.0, 158.0), (160.0, 175.0), (179.0, 260.0)]);
         let envelope = envelope(260.0, &[(158.0, 160.0)]);
         let gaps = gaps(&transcript, 260.0);
-        let edges = refine((97.0, 160.5), Policy::default(), Anchors::default(), around_the_ad(), &gaps, &envelope);
+        let edges = refine(
+            (97.0, 160.5),
+            Policy::default(),
+            Anchors::default(),
+            around_the_ad(),
+            &gaps,
+            &envelope,
+        );
         assert!((edges.end - 159.9).abs() < 1e-6, "cut ends at {}", edges.end);
     }
 
@@ -313,11 +346,13 @@ mod tests {
     fn an_anchor_phrase_overrides_a_late_label_and_a_tempting_pause() {
         // Labels ran 20 s past the ad, past a long silent pause; the hosts' "welcome back" starts
         // at 160 s, right after the ad's play-out sting.
-        let transcript = transcript(&[(0.0, 100.0), (102.0, 158.0), (160.0, 175.0), (179.0, 260.0)]);
+        let transcript =
+            transcript(&[(0.0, 100.0), (102.0, 158.0), (160.0, 175.0), (179.0, 260.0)]);
         let envelope = envelope(260.0, &[(158.0, 160.0)]);
         let gaps = gaps(&transcript, 260.0);
         let anchors = Anchors { start_after: Some(100.0), end_before: Some(160.0) };
-        let edges = refine((80.0, 180.0), Policy::default(), anchors, around_the_ad(), &gaps, &envelope);
+        let edges =
+            refine((80.0, 180.0), Policy::default(), anchors, around_the_ad(), &gaps, &envelope);
         assert!((edges.start - 100.1).abs() < 1e-6, "cut starts at {}", edges.start);
         assert!((edges.end - 159.9).abs() < 1e-6, "cut ends at {}", edges.end);
     }
@@ -326,11 +361,21 @@ mod tests {
     fn a_cut_edge_on_music_fades_but_never_into_a_word() {
         let (transcript, envelope) = ad_episode();
         let gaps = gaps(&transcript, 260.0);
-        let edges = refine((97.0, 163.0), Policy::default(), Anchors::default(), around_the_ad(), &gaps, &envelope);
+        let edges = refine(
+            (97.0, 163.0),
+            Policy::default(),
+            Anchors::default(),
+            around_the_ad(),
+            &gaps,
+            &envelope,
+        );
         assert_eq!(edges.fade_out, None, "the ad is preceded by room tone");
         // The sting plays up to the hosts' first word at 160 s; the cut ends 0.1 s before it.
         let fade_in = edges.fade_in.unwrap();
-        assert!((fade_in - 0.1).abs() < 1e-6, "fades in over {fade_in} s, into the hosts' first word");
+        assert!(
+            (fade_in - 0.1).abs() < 1e-6,
+            "fades in over {fade_in} s, into the hosts' first word"
+        );
     }
 
     #[test]
@@ -341,9 +386,13 @@ mod tests {
         let envelope = envelope(160.0, &[(99.5, 100.25), (100.3, 101.0)]);
         let gaps = gaps(&transcript, 160.0);
         let search = Search { around_start: (95.0, 105.0), around_end: (105.0, 115.0) };
-        let edges = refine((99.0, 112.0), Policy::default(), Anchors::default(), search, &gaps, &envelope);
+        let edges =
+            refine((99.0, 112.0), Policy::default(), Anchors::default(), search, &gaps, &envelope);
         assert!((edges.start - 100.25).abs() < 0.011, "cut starts at {}", edges.start);
-        assert_eq!(edges.fade_out, None, "the edge is in the hush before the music, so nothing fades");
+        assert_eq!(
+            edges.fade_out, None,
+            "the edge is in the hush before the music, so nothing fades"
+        );
     }
 
     #[test]
@@ -351,7 +400,8 @@ mod tests {
         let (transcript, envelope) = stung_episode();
         let gaps = gaps(&transcript, 260.0);
         let policy = Policy { start: CutStart::BeforeOwnSpeech, end: CutEnd::BeforeNextSpeech };
-        let edges = refine((97.0, 163.0), policy, Anchors::default(), around_the_ad(), &gaps, &envelope);
+        let edges =
+            refine((97.0, 163.0), policy, Anchors::default(), around_the_ad(), &gaps, &envelope);
         assert!((edges.start - 101.6).abs() < 0.02, "cut starts at {}", edges.start);
         assert_eq!(edges.fade_out, None, "the sting has finished by then");
         assert!((edges.end - 159.9).abs() < 1e-6, "the play-out sting is still cut");
@@ -362,11 +412,15 @@ mod tests {
         let (transcript, envelope) = stung_episode();
         let gaps = gaps(&transcript, 260.0);
         let policy = Policy { start: CutStart::AfterPreviousSpeech, end: CutEnd::AfterOwnSpeech };
-        let edges = refine((97.0, 163.0), policy, Anchors::default(), around_the_ad(), &gaps, &envelope);
+        let edges =
+            refine((97.0, 163.0), policy, Anchors::default(), around_the_ad(), &gaps, &envelope);
         assert!((edges.end - 158.6).abs() < 0.02, "cut ends at {}", edges.end);
         assert_eq!(edges.fade_in, None, "the sting has finished by then");
         let fade_out = edges.fade_out.unwrap();
-        assert!((fade_out - 0.1).abs() < 1e-6, "the lead-in sting is cut mid-note, faded back to the last word only: {fade_out}");
+        assert!(
+            (fade_out - 0.1).abs() < 1e-6,
+            "the lead-in sting is cut mid-note, faded back to the last word only: {fade_out}"
+        );
     }
 
     #[test]
@@ -374,7 +428,8 @@ mod tests {
         let (transcript, envelope) = ad_episode();
         let gaps = gaps(&transcript, 260.0);
         let search = Search { around_start: (30.0, 60.0), around_end: (200.0, 240.0) };
-        let edges = refine((45.0, 220.0), Policy::default(), Anchors::default(), search, &gaps, &envelope);
+        let edges =
+            refine((45.0, 220.0), Policy::default(), Anchors::default(), search, &gaps, &envelope);
         assert_eq!((edges.start, edges.end), (45.0, 220.0));
     }
 
@@ -383,7 +438,8 @@ mod tests {
         let (transcript, envelope) = ad_episode();
         let gaps = gaps(&transcript, 260.0);
         let search = Search { around_start: (0.0, 35.0), around_end: (60.0, 130.0) };
-        let edges = refine((0.0, 95.0), Policy::default(), Anchors::default(), search, &gaps, &envelope);
+        let edges =
+            refine((0.0, 95.0), Policy::default(), Anchors::default(), search, &gaps, &envelope);
         assert_eq!(edges.start, 0.0, "the preamble is cut from the top, not from its first pause");
     }
 

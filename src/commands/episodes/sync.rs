@@ -31,7 +31,8 @@ struct Summary<'a> {
 pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
     let (show, library) = context.show(&args.show)?;
     if show.feeds.is_empty() {
-        let error = CliError::precondition(format!("show `{}` has no feeds in the config file", args.show));
+        let error =
+            CliError::precondition(format!("show `{}` has no feeds in the config file", args.show));
         return Err(error.hint("supercut config get").into());
     }
 

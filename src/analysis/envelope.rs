@@ -22,7 +22,11 @@ impl Envelope {
         let levels_db = mean_squares
             .into_iter()
             .map(|mean_square| {
-                if mean_square <= 0.0 { FLOOR_DB } else { (10.0 * mean_square.log10()).max(f64::from(FLOOR_DB)) as f32 }
+                if mean_square <= 0.0 {
+                    FLOOR_DB
+                } else {
+                    (10.0 * mean_square.log10()).max(f64::from(FLOOR_DB)) as f32
+                }
             })
             .collect();
         Self { levels_db }
@@ -37,13 +41,15 @@ impl Envelope {
     }
 
     pub fn frame_at(&self, time: f64) -> usize {
-        ((time / FRAME_SECONDS + ROUNDING).floor().max(0.0) as usize).min(self.levels_db.len().saturating_sub(1))
+        ((time / FRAME_SECONDS + ROUNDING).floor().max(0.0) as usize)
+            .min(self.levels_db.len().saturating_sub(1))
     }
 
     /// Frames covering `[start, end)`; at least one frame.
     fn frames_in(&self, start: f64, end: f64) -> std::ops::Range<usize> {
         let first = self.frame_at(start);
-        let last = ((end / FRAME_SECONDS - ROUNDING).ceil().max(0.0) as usize).clamp(first + 1, self.levels_db.len().max(first + 1));
+        let last = ((end / FRAME_SECONDS - ROUNDING).ceil().max(0.0) as usize)
+            .clamp(first + 1, self.levels_db.len().max(first + 1));
         first..last
     }
 
@@ -59,12 +65,19 @@ impl Envelope {
     /// Energy-averaged level over `[start, end)`.
     pub fn mean_db(&self, start: f64, end: f64) -> f32 {
         let frames = &self.levels_db[self.frames_in(start, end)];
-        let energy: f64 = frames.iter().map(|db| 10f64.powf(f64::from(*db) / 10.0)).sum::<f64>() / frames.len() as f64;
+        let energy: f64 = frames.iter().map(|db| 10f64.powf(f64::from(*db) / 10.0)).sum::<f64>()
+            / frames.len() as f64;
         if energy <= 0.0 { FLOOR_DB } else { (10.0 * energy.log10()) as f32 }
     }
 
     /// Spans inside `[start, end)` that stay below `threshold_db` for at least `min_seconds`.
-    pub fn quiet_spans(&self, start: f64, end: f64, threshold_db: f32, min_seconds: f64) -> Vec<(f64, f64)> {
+    pub fn quiet_spans(
+        &self,
+        start: f64,
+        end: f64,
+        threshold_db: f32,
+        min_seconds: f64,
+    ) -> Vec<(f64, f64)> {
         let frames = self.frames_in(start, end);
         let min_frames = (min_seconds / FRAME_SECONDS).ceil() as usize;
         let mut spans = Vec::new();
@@ -87,12 +100,17 @@ impl Envelope {
 
     /// Start of the first frame in `[start, end)` louder than `threshold_db`.
     pub fn first_above(&self, start: f64, end: f64, threshold_db: f32) -> Option<f64> {
-        self.frames_in(start, end).find(|&frame| self.levels_db[frame] > threshold_db).map(Self::time_of)
+        self.frames_in(start, end)
+            .find(|&frame| self.levels_db[frame] > threshold_db)
+            .map(Self::time_of)
     }
 
     /// End of the last frame in `[start, end)` louder than `threshold_db`.
     pub fn last_above(&self, start: f64, end: f64, threshold_db: f32) -> Option<f64> {
-        self.frames_in(start, end).rev().find(|&frame| self.levels_db[frame] > threshold_db).map(|frame| Self::time_of(frame + 1))
+        self.frames_in(start, end)
+            .rev()
+            .find(|&frame| self.levels_db[frame] > threshold_db)
+            .map(|frame| Self::time_of(frame + 1))
     }
 
     pub fn save(&self, path: &Path) -> anyhow::Result<()> {
@@ -102,7 +120,8 @@ impl Envelope {
 
     pub fn load(path: &Path) -> anyhow::Result<Self> {
         let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
-        let levels_db = bytes.as_chunks::<4>().0.iter().map(|chunk| f32::from_le_bytes(*chunk)).collect();
+        let levels_db =
+            bytes.as_chunks::<4>().0.iter().map(|chunk| f32::from_le_bytes(*chunk)).collect();
         Ok(Self { levels_db })
     }
 }
@@ -115,7 +134,8 @@ mod tests {
     fn quiet_spans_honor_threshold_and_minimum_length() {
         // 0.5 s loud, 0.3 s quiet, 0.2 s loud, 0.05 s quiet, 0.5 s loud, 0.4 s quiet to the end.
         let pattern = [(50, 0.1), (30, 1e-8), (20, 0.1), (5, 1e-8), (50, 0.1), (40, 1e-8)];
-        let squares = pattern.iter().flat_map(|&(frames, square)| std::iter::repeat_n(square, frames));
+        let squares =
+            pattern.iter().flat_map(|&(frames, square)| std::iter::repeat_n(square, frames));
         let envelope = Envelope::from_mean_squares(squares);
         let spans = envelope.quiet_spans(0.0, envelope.duration(), -50.0, 0.1);
         assert_eq!(spans.len(), 2, "{spans:?}");

@@ -50,7 +50,8 @@ pub fn transcribe(config: &TranscriptionConfig, audio: &Path) -> anyhow::Result<
     })?;
     let stem = audio.file_stem().context("the audio file has no name")?.to_string_lossy();
     let written = scratch.path().join(format!("{stem}.json"));
-    let json = std::fs::read_to_string(&written)
-        .with_context(|| format!("reading the transcript whisper-ctranslate2 wrote to {}", written.display()))?;
+    let json = std::fs::read_to_string(&written).with_context(|| {
+        format!("reading the transcript whisper-ctranslate2 wrote to {}", written.display())
+    })?;
     openai_json::parse(&json, &Made { engine: ENGINE, model, language: &config.language })
 }

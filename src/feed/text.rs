@@ -69,7 +69,19 @@ fn separates_text(tag: &str) -> bool {
         .to_ascii_lowercase();
     matches!(
         name.as_str(),
-        "p" | "br" | "div" | "li" | "ul" | "ol" | "tr" | "td" | "th" | "blockquote" | "h1" | "h2" | "h3" | "h4"
+        "p" | "br"
+            | "div"
+            | "li"
+            | "ul"
+            | "ol"
+            | "tr"
+            | "td"
+            | "th"
+            | "blockquote"
+            | "h1"
+            | "h2"
+            | "h3"
+            | "h4"
     )
 }
 
@@ -79,7 +91,8 @@ mod tests {
 
     #[test]
     fn plain_text_strips_markup_and_keeps_words_apart() {
-        let html = "<p>Burt &amp; Joan</p><p>Call <a href=\"https://example.com/x?y=1\">the line</a>.</p>";
+        let html =
+            "<p>Burt &amp; Joan</p><p>Call <a href=\"https://example.com/x?y=1\">the line</a>.</p>";
         assert_eq!(plain_text(html), "Burt & Joan Call the line.");
     }
 
@@ -106,6 +119,9 @@ mod tests {
 
     #[test]
     fn normalized_titles_spell_out_the_w_abbreviation() {
-        assert_eq!(normalize_title("Stolen Wood w/ Bobby"), normalize_title("Stolen Wood with Bobby"));
+        assert_eq!(
+            normalize_title("Stolen Wood w/ Bobby"),
+            normalize_title("Stolen Wood with Bobby")
+        );
     }
 }

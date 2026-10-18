@@ -62,7 +62,9 @@ impl Reel {
         for splice in window.splices {
             let preview_time = Time(start + splice.at - window.from);
             let (cut_start, cut_end, reason) = match splice.cut {
-                Some((cut_start, cut_end, reason)) => (Some(Time(cut_start)), Some(Time(cut_end)), reason),
+                Some((cut_start, cut_end, reason)) => {
+                    (Some(Time(cut_start)), Some(Time(cut_end)), reason)
+                }
                 None => (None, None, None),
             };
             self.transitions.push(Transition {
@@ -93,7 +95,13 @@ impl Reel {
 fn windows(input: &Input, timeline: &Timeline, context: f64) -> Vec<Window> {
     let mut windows = Vec::new();
     if let Some(first) = timeline.episodes.first() {
-        let opening = Splice { at: 0.0, kind: Kind::Opening, episode: first.id.clone(), next: None, cut: None };
+        let opening = Splice {
+            at: 0.0,
+            kind: Kind::Opening,
+            episode: first.id.clone(),
+            next: None,
+            cut: None,
+        };
         windows.push(Window::around(0.0, context, opening));
     }
     for (index, (span, episode)) in timeline.episodes.iter().zip(&input.episodes).enumerate() {
@@ -112,7 +120,11 @@ fn windows(input: &Input, timeline: &Timeline, context: f64) -> Vec<Window> {
 }
 
 /// Where one kept stretch of an episode gives way to the next: a cut with audio on both sides.
-fn cut_windows<'a>(episode: &'a InputEpisode, pieces: &'a [Piece], context: f64) -> impl Iterator<Item = Window> + 'a {
+fn cut_windows<'a>(
+    episode: &'a InputEpisode,
+    pieces: &'a [Piece],
+    context: f64,
+) -> impl Iterator<Item = Window> + 'a {
     pieces.windows(2).map(move |pair| {
         let (cut_start, cut_end) = (source(&pair[0]).1, source(&pair[1]).0);
         let reason = episode
@@ -121,7 +133,13 @@ fn cut_windows<'a>(episode: &'a InputEpisode, pieces: &'a [Piece], context: f64)
             .find(|cut| (cut.start.seconds() - cut_start).abs() < EPSILON)
             .map(|cut| cut.reason.clone());
         let at = pair[0].output_end();
-        let splice = Splice { at, kind: Kind::Cut, episode: episode.id.clone(), next: None, cut: Some((cut_start, cut_end, reason)) };
+        let splice = Splice {
+            at,
+            kind: Kind::Cut,
+            episode: episode.id.clone(),
+            next: None,
+            cut: Some((cut_start, cut_end, reason)),
+        };
         Window::around(at - context, at + context, splice)
     })
 }
@@ -156,9 +174,11 @@ fn slice(piece: &Piece, from: f64, to: f64) -> Option<Piece> {
         unreachable!("a rendered timeline holds no preview markers")
     };
     let offset = start - piece.output_start;
-    let source = Source::file(path.clone(), source_start + offset, source_start + offset + (end - start));
+    let source =
+        Source::file(path.clone(), source_start + offset, source_start + offset + (end - start));
     let fade_in = if offset < EPSILON { piece.fade_in } else { EDGE_FADE_SECONDS };
-    let fade_out = if piece.output_end() - end < EPSILON { piece.fade_out } else { EDGE_FADE_SECONDS };
+    let fade_out =
+        if piece.output_end() - end < EPSILON { piece.fade_out } else { EDGE_FADE_SECONDS };
     Some(Piece::new(source, piece.gain_db, 0.0).faded(fade_in, fade_out))
 }
 

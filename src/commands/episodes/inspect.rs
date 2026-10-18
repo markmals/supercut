@@ -48,14 +48,18 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
     let episode = index.get(&args.id)?;
     let envelope = crate::analysis::episode_envelope(&show, episode)?;
     let transcript_path = show.transcript_path(&episode.id);
-    let transcript: Option<Transcript> =
-        if transcript_path.exists() { Some(crate::library::read_json(&transcript_path)?) } else { None };
+    let transcript: Option<Transcript> = if transcript_path.exists() {
+        Some(crate::library::read_json(&transcript_path)?)
+    } else {
+        None
+    };
     let from = (args.at.seconds() - args.window / 2.0).max(0.0);
     let to = (args.at.seconds() + args.window / 2.0).min(envelope.duration());
     if let Some(path) = &args.spectrogram {
         write_spectrogram(&show.audio_path(episode)?, from, to - from, path)?;
     }
-    let moment = moment::inspect(&envelope, transcript.as_ref(), from, to, args.step, args.quiet_db);
+    let moment =
+        moment::inspect(&envelope, transcript.as_ref(), from, to, args.step, args.quiet_db);
     match args.output {
         Format::Json => crate::output::print_json(&moment),
         Format::Text => {
@@ -65,15 +69,38 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
     }
 }
 
-fn write_spectrogram(audio: &std::path::Path, start: f64, duration: f64, path: &std::path::Path) -> anyhow::Result<()> {
+fn write_spectrogram(
+    audio: &std::path::Path,
+    start: f64,
+    duration: f64,
+    path: &std::path::Path,
+) -> anyhow::Result<()> {
     let output = std::process::Command::new("ffmpeg")
-        .args(["-nostdin", "-v", "error", "-y", "-ss", &format!("{start:.3}"), "-t", &format!("{duration:.3}"), "-i"])
+        .args([
+            "-nostdin",
+            "-v",
+            "error",
+            "-y",
+            "-ss",
+            &format!("{start:.3}"),
+            "-t",
+            &format!("{duration:.3}"),
+            "-i",
+        ])
         .arg(audio)
-        .args(["-lavfi", "showspectrumpic=s=1200x480:legend=1:scale=log:fscale=log:stop=8000", "-frames:v", "1"])
+        .args([
+            "-lavfi",
+            "showspectrumpic=s=1200x480:legend=1:scale=log:fscale=log:stop=8000",
+            "-frames:v",
+            "1",
+        ])
         .arg(path)
         .output()?;
     if !output.status.success() {
-        let message = format!("ffmpeg could not draw the spectrogram: {}", String::from_utf8_lossy(&output.stderr).trim());
+        let message = format!(
+            "ffmpeg could not draw the spectrogram: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
         return Err(CliError::new(ErrorCode::ExternalTool, message).into());
     }
     eprintln!("spectrogram written to {}", path.display());

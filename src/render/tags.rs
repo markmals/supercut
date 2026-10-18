@@ -31,7 +31,8 @@ pub fn write(path: &Path, tags: &Tags) -> anyhow::Result<usize> {
         tag.add_frame(picture(artwork)?);
     }
     let chapters = add_chapters(&mut tag, tags.episodes);
-    tag.write_to_path(path, Version::Id3v23).with_context(|| format!("tagging {}", path.display()))?;
+    tag.write_to_path(path, Version::Id3v23)
+        .with_context(|| format!("tagging {}", path.display()))?;
     Ok(chapters)
 }
 
@@ -52,7 +53,13 @@ fn add_chapters(tag: &mut Tag, episodes: &[EpisodeSpan]) -> usize {
         }
         for (position, segment) in span.chapters.iter().enumerate() {
             let child = format!("{id}c{:02}", position + 1);
-            chapters.push(chapter(&child, segment.start, segment.end, &segment.title, segment.description.as_deref()));
+            chapters.push(chapter(
+                &child,
+                segment.start,
+                segment.end,
+                &segment.title,
+                segment.description.as_deref(),
+            ));
             entries.push(child);
         }
     }
@@ -81,7 +88,13 @@ fn chapter(id: &str, start: f64, end: f64, title: &str, description: Option<&str
 }
 
 fn contents(id: &str, elements: Vec<String>) -> Frame {
-    let contents = TableOfContents { element_id: id.to_string(), top_level: true, ordered: true, elements, frames: Vec::new() };
+    let contents = TableOfContents {
+        element_id: id.to_string(),
+        top_level: true,
+        ordered: true,
+        elements,
+        frames: Vec::new(),
+    };
     Frame::with_content("CTOC", Content::TableOfContents(contents))
 }
 
@@ -94,14 +107,16 @@ fn milliseconds(seconds: f64) -> u32 {
 }
 
 fn picture(path: &Path) -> anyhow::Result<Frame> {
-    let data = std::fs::read(path).with_context(|| format!("reading the artwork {}", path.display()))?;
+    let data =
+        std::fs::read(path).with_context(|| format!("reading the artwork {}", path.display()))?;
     let extension = path.extension().unwrap_or_default().to_string_lossy().to_ascii_lowercase();
     let mime_type = match extension.as_str() {
         "png" => "image/png",
         "jpg" | "jpeg" => "image/jpeg",
         other => {
-            let unusable = CliError::invalid(format!("the artwork {} is a `{other}` file", path.display()))
-                .hint("point `artwork` at a JPEG or PNG");
+            let unusable =
+                CliError::invalid(format!("the artwork {} is a `{other}` file", path.display()))
+                    .hint("point `artwork` at a JPEG or PNG");
             return Err(unusable.into());
         }
     };

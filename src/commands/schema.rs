@@ -48,13 +48,19 @@ pub fn run(_context: &Context, args: Args) -> anyhow::Result<()> {
     let root = crate::Cli::command();
     let operations = leaf_operations(&root);
     if args.path.is_empty() {
-        let summaries: Vec<Summary> =
-            operations.iter().map(|(path, command)| Summary { command: format!("supercut {path}"), summary: about(command) }).collect();
+        let summaries: Vec<Summary> = operations
+            .iter()
+            .map(|(path, command)| Summary {
+                command: format!("supercut {path}"),
+                summary: about(command),
+            })
+            .collect();
         return crate::output::print_json(&summaries);
     }
     let wanted = args.path.join(" ");
     let (path, command) = operations.iter().find(|(path, _)| *path == wanted).ok_or_else(|| {
-        CliError::not_found(format!("no operation `{wanted}`")).hint(format!("supercut cli search \"{wanted}\""))
+        CliError::not_found(format!("no operation `{wanted}`"))
+            .hint(format!("supercut cli search \"{wanted}\""))
     })?;
     crate::output::print_json(&describe(path, command))
 }
@@ -68,7 +74,11 @@ pub fn leaf_operations(root: &clap::Command) -> Vec<(String, clap::Command)> {
 
 fn collect_leaves(command: &clap::Command, prefix: &str, found: &mut Vec<(String, clap::Command)>) {
     for child in command.get_subcommands().filter(|child| child.get_name() != "help") {
-        let path = if prefix.is_empty() { child.get_name().to_owned() } else { format!("{prefix} {}", child.get_name()) };
+        let path = if prefix.is_empty() {
+            child.get_name().to_owned()
+        } else {
+            format!("{prefix} {}", child.get_name())
+        };
         if child.has_subcommands() {
             collect_leaves(child, &path, found);
         } else {
@@ -102,17 +112,35 @@ fn describe(path: &str, command: &clap::Command) -> OperationSchema {
 }
 
 fn describe_argument(arg: &clap::Arg) -> ArgumentSchema {
-    let flag = matches!(arg.get_action(), ArgAction::SetTrue | ArgAction::SetFalse | ArgAction::Count);
+    let flag =
+        matches!(arg.get_action(), ArgAction::SetTrue | ArgAction::SetFalse | ArgAction::Count);
     let name = match (arg.get_long(), arg.is_positional()) {
         (Some(long), _) => format!("--{long}"),
-        (None, _) => arg.get_value_names().and_then(|names| names.first()).map_or_else(|| arg.get_id().to_string(), ToString::to_string),
+        (None, _) => arg
+            .get_value_names()
+            .and_then(|names| names.first())
+            .map_or_else(|| arg.get_id().to_string(), ToString::to_string),
     };
     ArgumentSchema {
         name,
-        kind: if arg.is_positional() { "positional" } else if flag { "flag" } else { "option" },
+        kind: if arg.is_positional() {
+            "positional"
+        } else if flag {
+            "flag"
+        } else {
+            "option"
+        },
         required: arg.is_required_set(),
-        multiple: matches!(arg.get_action(), ArgAction::Append) || arg.get_num_args().is_some_and(|range| range.max_values() > 1),
-        default: if flag { Vec::new() } else { arg.get_default_values().iter().map(|value| value.to_string_lossy().into_owned()).collect() },
+        multiple: matches!(arg.get_action(), ArgAction::Append)
+            || arg.get_num_args().is_some_and(|range| range.max_values() > 1),
+        default: if flag {
+            Vec::new()
+        } else {
+            arg.get_default_values()
+                .iter()
+                .map(|value| value.to_string_lossy().into_owned())
+                .collect()
+        },
         values: arg.get_possible_values().iter().map(|value| value.get_name().to_owned()).collect(),
         help: arg.get_help().map(ToString::to_string).unwrap_or_default(),
     }
@@ -127,8 +155,10 @@ mod tests {
 
     #[test]
     fn registry_and_cli_describe_the_same_operations() {
-        let mut cli: Vec<String> = leaf_operations(&crate::Cli::command()).into_iter().map(|(path, _)| path).collect();
-        let mut registered: Vec<String> = OPERATIONS.iter().map(|operation| operation.path.to_owned()).collect();
+        let mut cli: Vec<String> =
+            leaf_operations(&crate::Cli::command()).into_iter().map(|(path, _)| path).collect();
+        let mut registered: Vec<String> =
+            OPERATIONS.iter().map(|operation| operation.path.to_owned()).collect();
         cli.sort();
         registered.sort();
         assert_eq!(cli, registered);

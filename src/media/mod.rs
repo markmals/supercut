@@ -54,8 +54,13 @@ pub fn probe(path: &Path) -> anyhow::Result<Probe> {
             path.as_os_str(),
         ],
     )?;
-    let report: Report = serde_json::from_slice(&output.stdout).context("parsing ffprobe output")?;
-    let stream = report.streams.into_iter().next().with_context(|| format!("{} has no audio stream", path.display()))?;
+    let report: Report =
+        serde_json::from_slice(&output.stdout).context("parsing ffprobe output")?;
+    let stream = report
+        .streams
+        .into_iter()
+        .next()
+        .with_context(|| format!("{} has no audio stream", path.display()))?;
     let bit_rate = stream.bit_rate.or(report.format.bit_rate).and_then(|rate| rate.parse().ok());
     Ok(Probe {
         codec: stream.codec_name,
@@ -78,7 +83,11 @@ where
         .output()
         .with_context(|| format!("running {program}; is it installed and on PATH?"))?;
     if !output.status.success() {
-        bail!("{program} failed ({}): {}", output.status, String::from_utf8_lossy(&output.stderr).trim());
+        bail!(
+            "{program} failed ({}): {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
     }
     Ok(output)
 }

@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 
 use crate::commands::Context;
-use crate::config::{ChapterScheme, Config, LoudnessConfig, SegmentKind, ShowConfig, TranscriptionConfig};
+use crate::config::{
+    ChapterScheme, Config, LoudnessConfig, SegmentKind, ShowConfig, TranscriptionConfig,
+};
 use crate::output::print_json;
 
 /// Show the effective configuration and where supercut keeps its files, secrets redacted.

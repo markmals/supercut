@@ -14,7 +14,10 @@ pub struct Spoken {
 }
 
 pub fn spoken(transcript: &Transcript) -> Vec<Spoken> {
-    transcript.words().map(|word| Spoken { start: word.start, end: word.end, text: normalize(&word.text) }).collect()
+    transcript
+        .words()
+        .map(|word| Spoken { start: word.start, end: word.end, text: normalize(&word.text) })
+        .collect()
 }
 
 /// Lowercase letters, digits and apostrophes only, so "Back," matches "back" and "we'll" stays
@@ -29,7 +32,8 @@ fn normalize(text: &str) -> String {
 
 /// Every place `phrase` is said, as (start of its first word, end of its last word).
 fn occurrences(words: &[Spoken], phrase: &str) -> Vec<(f64, f64)> {
-    let wanted: Vec<String> = phrase.split_whitespace().map(normalize).filter(|word| !word.is_empty()).collect();
+    let wanted: Vec<String> =
+        phrase.split_whitespace().map(normalize).filter(|word| !word.is_empty()).collect();
     if wanted.is_empty() || words.len() < wanted.len() {
         return Vec::new();
     }
@@ -53,7 +57,12 @@ pub fn start_after(words: &[Spoken], phrases: &[String], labeled_start: f64) -> 
 
 /// Where a segment that began at `segment_start` and was labeled to end near `labeled_end`
 /// really ends: at the first of `phrases` said after it began.
-pub fn end_before(words: &[Spoken], phrases: &[String], segment_start: f64, labeled_end: f64) -> Option<f64> {
+pub fn end_before(
+    words: &[Spoken],
+    phrases: &[String],
+    segment_start: f64,
+    labeled_end: f64,
+) -> Option<f64> {
     phrases
         .iter()
         .flat_map(|phrase| occurrences(words, phrase))
@@ -68,8 +77,15 @@ mod tests {
     use crate::transcript::{Segment, Word};
 
     fn said(words: &[(&str, f64)]) -> Vec<Spoken> {
-        let words: Vec<Word> =
-            words.iter().map(|(text, start)| Word { start: *start, end: start + 0.3, text: (*text).into(), probability: None }).collect();
+        let words: Vec<Word> = words
+            .iter()
+            .map(|(text, start)| Word {
+                start: *start,
+                end: start + 0.3,
+                text: (*text).into(),
+                probability: None,
+            })
+            .collect();
         let transcript = Transcript {
             engine: String::new(),
             model: String::new(),
@@ -82,17 +98,35 @@ mod tests {
 
     #[test]
     fn the_hosts_welcome_back_ends_the_ad_wherever_the_labels_put_the_edge() {
-        let words = said(&[("pigs.", 4738.8), ("And", 4743.6), ("Welcome", 4744.8), ("back", 4745.2), ("to", 4745.6)]);
+        let words = said(&[
+            ("pigs.", 4738.8),
+            ("And", 4743.6),
+            ("Welcome", 4744.8),
+            ("back", 4745.2),
+            ("to", 4745.6),
+        ]);
         let phrases = vec!["welcome back".to_owned()];
         // Labels ended the ad 20 s late, or 10 s early: the phrase decides either way.
         assert_eq!(end_before(&words, &phrases, 4675.0, 4765.0), Some(4744.8));
         assert_eq!(end_before(&words, &phrases, 4675.0, 4735.0), Some(4744.8));
-        assert_eq!(end_before(&words, &phrases, 4746.0, 4765.0), None, "only phrases after the segment began count");
+        assert_eq!(
+            end_before(&words, &phrases, 4746.0, 4765.0),
+            None,
+            "only phrases after the segment began count"
+        );
     }
 
     #[test]
     fn the_break_announcement_nearest_the_labeled_start_begins_the_ad() {
-        let words = said(&[("I'll", 1600.0), ("be", 1600.3), ("back", 1600.6), ("we'll", 1748.0), ("be", 1748.3), ("back", 1748.6), ("Hi,", 1764.6)]);
+        let words = said(&[
+            ("I'll", 1600.0),
+            ("be", 1600.3),
+            ("back", 1600.6),
+            ("we'll", 1748.0),
+            ("be", 1748.3),
+            ("back", 1748.6),
+            ("Hi,", 1764.6),
+        ]);
         let phrases = vec!["be back".to_owned()];
         let start = start_after(&words, &phrases, 1760.0).unwrap();
         assert!((start - 1748.9).abs() < 1e-9, "the nearer announcement wins: {start}");

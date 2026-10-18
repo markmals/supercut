@@ -59,8 +59,11 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
     let (_, library) = context.show(&args.show)?;
     let index = library.load_synced_index()?;
     let chosen = args.selection.resolve(&index)?;
-    let episodes: Vec<_> =
-        index.episodes.iter().filter(|episode| chosen.iter().any(|one| one.id == episode.id)).collect();
+    let episodes: Vec<_> = index
+        .episodes
+        .iter()
+        .filter(|episode| chosen.iter().any(|one| one.id == episode.id))
+        .collect();
 
     let path = labels::plan_path(&library, &args.output, args.plan);
     if path.exists() && !args.force {

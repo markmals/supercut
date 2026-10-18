@@ -45,7 +45,9 @@ pub fn render(context: &Context, request: Request) -> anyhow::Result<Rendered> {
 
     let output = match &request.out {
         Some(path) => path.clone(),
-        None => context.config.output_dir()?.join(&resolved.library.slug).join(&request.plan.output),
+        None => {
+            context.config.output_dir()?.join(&resolved.library.slug).join(&request.plan.output)
+        }
     };
     let sideload = sideload_path(context, &output, request.sideload)?;
     for finished in [Some(&output), sideload.as_ref()].into_iter().flatten() {
@@ -110,12 +112,17 @@ fn write_file(
     })
 }
 
-fn sideload_path(context: &Context, output: &Path, wanted: bool) -> anyhow::Result<Option<PathBuf>> {
+fn sideload_path(
+    context: &Context,
+    output: &Path,
+    wanted: bool,
+) -> anyhow::Result<Option<PathBuf>> {
     if !wanted {
         return Ok(None);
     }
     let dir = context.config.sideload_dir.as_deref().ok_or_else(|| {
-        CliError::precondition("`sideload_dir` is not set in the config file").hint("supercut config get")
+        CliError::precondition("`sideload_dir` is not set in the config file")
+            .hint("supercut config get")
     })?;
     let name = output.file_name().expect("an output file has a name");
     Ok(Some(dir.join(name)))
@@ -134,6 +141,7 @@ fn refuse_to_overwrite(path: &Path, force: bool) -> anyhow::Result<()> {
 fn copy_to_sideload(output: &Path, sideload: &Path) -> anyhow::Result<()> {
     let parent = sideload.parent().expect("a sideload file has a folder");
     std::fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
-    std::fs::copy(output, sideload).with_context(|| format!("copying into {}", sideload.display()))?;
+    std::fs::copy(output, sideload)
+        .with_context(|| format!("copying into {}", sideload.display()))?;
     Ok(())
 }

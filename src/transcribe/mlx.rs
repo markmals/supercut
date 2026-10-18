@@ -45,7 +45,8 @@ pub fn transcribe(config: &TranscriptionConfig, audio: &Path) -> anyhow::Result<
             .hint("check `mlx_whisper --help` runs and that transcription.model names a model it can fetch")
     })?;
     let written = scratch.path().join(format!("{OUTPUT_NAME}.json"));
-    let json = std::fs::read_to_string(&written)
-        .with_context(|| format!("reading the transcript mlx_whisper wrote to {}", written.display()))?;
+    let json = std::fs::read_to_string(&written).with_context(|| {
+        format!("reading the transcript mlx_whisper wrote to {}", written.display())
+    })?;
     openai_json::parse(&json, &Made { engine: ENGINE, model, language: &config.language })
 }
