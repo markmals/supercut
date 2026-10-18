@@ -11,8 +11,7 @@ Agreed order: get The Neighborhood Listen (NHL) right end to end, then publishin
 
 ## Publishing
 
-- A private R2 feed per show behind a long secret URL. An unfilled RSS template from September 2025 sits in `Podcasts/feeds/*.rss`.
-- Replace the Castro-specific `--sideload` with a generic publish step (agreed): any number of configured folder copies, each file named after the supercut's title (Castro shows a sideload's file name as its episode title; the existing sideloads use `<Show> - <range>.mp3`), plus the R2 feed. Castro becomes one configured folder the user can drop later.
+- A private R2 feed per show behind a long secret URL, as a second target of `plans publish` beside its `publish_folders` copies. An unfilled RSS template from September 2025 sits in `Podcasts/feeds/*.rss`. Needs the bucket, its public URL and credentials.
 
 ## Other shows (after NHL)
 
@@ -24,10 +23,7 @@ Agreed order: get The Neighborhood Listen (NHL) right end to end, then publishin
 
 ## Housekeeping
 
-- Adversarial review of the commits `c3fff5a` to `a0a5b67` (fades, final segment, bumpers, final interstitial, preview reel, review line).
-- Confirm the true-peak ceiling holds after MP3 encoding (the limiter runs before the encoder).
-- `--output` means a format on some commands and a file on others.
+- The true-peak ceiling does not hold after encoding. `alimiter` limits sample peaks, and inter-sample peaks and the MP3 encoder overshoot it. The redux renders, which barely touch the limiter, measure -1.48 dBTP (S11) and -2.20 (S01) against the -1.5 ceiling. Ten minutes of S11E01 raised 8 dB measure -0.58 dBTP before encoding and -0.27 after. Limiting a 4× oversampled signal holds it before encoding (-1.43) but not after (-0.26), so a fix needs both oversampled limiting and a check after encoding: put the measured true peak in the render receipt, and re-render or warn when it is over.
+- `history recover` files any unmatched tail of an export as an interstitial, so an export that ends in a few seconds of silence gets a recovered plan that plays the show's interstitial after its last episode (`history/recover.rs`, `interstitial_follows`; from the adversarial review of `c3fff5a`..`a0a5b67`, not reproduced).
 - `plans draft` does not read the show's rules file; the agent applies it.
-- Shows without a `chapters` layout get a chapter per labeled segment, and those go stale after hand edits (a kept low-confidence `classified` keeps its chapter, a hand cut can leave a seconds-long one) and flicker when the labels flip inside a segment. `plans validate` only reports chapters that fall wholly inside a cut; it could also flag chapters a few seconds long.
-- supercut panics ("failed printing to stdout: Broken pipe") when the program reading its output exits first, as `supercut … | head` does; it should exit quietly.
 - Windows is untested: the code builds and passes the suite on macOS and Linux (Tangerine), but nothing has compiled or run it on Windows. A CI matrix (macOS, Ubuntu, Windows) running `cargo test` would cover all three; it needs the repo on GitHub.
