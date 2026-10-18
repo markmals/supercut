@@ -22,7 +22,7 @@ flowchart LR
 2. `transcripts create` writes word-timed transcripts with mlx-whisper on Apple silicon or faster-whisper elsewhere. Expect about 5 minutes per hour of audio with mlx-whisper, and about 12 with faster-whisper on a fast CPU.
 3. `labels create` sends ~30-second transcript windows to TypeSafe's Jev decision model, which sorts each window into one of the segments configured for the show (intro, hosts, ads, guest). Jev bills per input token; `--dry-run` prints the request count and an estimated token count without sending anything.
 4. `plans draft` turns the labels into a cut plan. It cuts every segment marked `cut`, trims each episode's opening to the end of its theme song and its ending at the credits music (or at credits read aloud before it), puts the interstitial between episodes and lays out chapters. Segments it was unsure about come back in `low_confidence`, and edges it could not place come back in `warnings`.
-5. You check the plan. `plans validate` reports errors and edges that land on sounding audio, `plans review` lists every cut with the words heard either side of it, and `plans preview` renders a short reel of every splice. Fixes are edits to the plan's JSON.
+5. You check the plan. `plans validate` reports errors, edges that land on sounding audio and chapters a cut left only seconds long, `plans review` lists every cut with the words heard either side of it, and `plans preview` renders a short reel of every splice. Fixes are edits to the plan's JSON.
 6. `plans render` writes the finished MP3.
 
 ## Requirements

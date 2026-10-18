@@ -8,6 +8,8 @@ use crate::timecode::Time;
 const EPSILON: f64 = 0.001;
 /// A lead-in shorter than this joins the episode's first chapter instead of getting its own.
 const LEAD_IN_MERGE_SECONDS: f64 = 30.0;
+/// A chapter that plays for less than this is likely what a cut left of a segment, not one.
+const SHORT_CHAPTER_SECONDS: f64 = 15.0;
 
 /// A plan with the audio facts a timeline needs already measured.
 pub struct Input {
@@ -217,15 +219,27 @@ fn map_time(pieces: &[Piece], time: f64) -> Option<f64> {
     None
 }
 
-/// Chapters and episodes tile the file, so each one ends where the next begins.
+/// Chapters and episodes tile the file, so each one ends where the next begins. A chapter left
+/// only seconds long gets a warning.
 fn close_spans(timeline: &mut Timeline) {
     let duration = timeline.duration();
     let starts: Vec<f64> = timeline.episodes.iter().map(|span| span.start).collect();
     for (index, span) in timeline.episodes.iter_mut().enumerate() {
         span.end = starts.get(index + 1).copied().unwrap_or(duration);
         for position in 0..span.chapters.len() {
-            span.chapters[position].end =
-                span.chapters.get(position + 1).map_or(span.end, |next| next.start);
+            let end = span.chapters.get(position + 1).map_or(span.end, |next| next.start);
+            let chapter = &mut span.chapters[position];
+            chapter.end = end;
+            if end - chapter.start < SHORT_CHAPTER_SECONDS {
+                timeline.warnings.push(format!(
+                    "{}: chapter `{}` plays only {:.1} s, from {} in the supercut; a cut may have \
+                     left it behind",
+                    span.id,
+                    chapter.title,
+                    end - chapter.start,
+                    Time(chapter.start)
+                ));
+            }
         }
     }
 }

@@ -173,6 +173,16 @@ fn a_chapter_with_no_audio_left_after_it_is_dropped_with_a_warning() {
 }
 
 #[test]
+fn a_chapter_a_cut_leaves_seconds_long_gets_a_warning() {
+    // The plug runs 50-60 s; a hand cut through 58 s leaves 2 s of it before the credits.
+    let chapters = vec![chapter(0.0, "Hosts"), chapter(50.0, "Plug"), chapter(60.0, "Credits")];
+    let timeline = build(&input(vec![episode("a", 100.0, vec![cut(45.0, 58.0)], chapters)], None));
+
+    assert_eq!(timeline.warnings.len(), 1, "{:?}", timeline.warnings);
+    assert!(timeline.warnings[0].contains("`Plug` plays only 2.0 s"), "{}", timeline.warnings[0]);
+}
+
+#[test]
 fn a_long_lead_in_is_labelled_with_the_episode() {
     let timeline =
         build(&input(vec![episode("a", 100.0, vec![], vec![chapter(45.0, "Guest")])], None));
