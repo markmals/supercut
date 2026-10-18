@@ -11,8 +11,9 @@
   // Where rendered supercuts go, one folder per show. `render` needs this.
   "output_dir": "~/Music/Supercuts",
 
-  // Podcast app folder that `render --sideload` copies finished supercuts into.
-  // "sideload_dir": "~/Library/Mobile Documents/iCloud~co~supertop~castro/Documents/Sideloads",
+  // Folders `plans publish` copies each rendered supercut into, named after its title, e.g. a
+  // podcast app's sideload folder.
+  // "publish_folders": ["~/Library/Mobile Documents/iCloud~co~supertop~castro/Documents/Sideloads"],
 
   "transcription": {
     // "mlx-whisper" (Apple silicon only, and the default there) or "faster-whisper" (any

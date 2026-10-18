@@ -43,7 +43,9 @@ pub fn run(context: &Context, _args: Args) -> anyhow::Result<()> {
 fn path_problems(config: &Config) -> Vec<String> {
     let mut problems = Vec::new();
     problems.extend(missing("output_dir", config.output_dir.as_deref()));
-    problems.extend(missing("sideload_dir", config.sideload_dir.as_deref()));
+    for (index, folder) in config.publish_folders.iter().enumerate() {
+        problems.extend(missing(&format!("publish_folders[{index}]"), Some(folder.as_path())));
+    }
     for (slug, show) in &config.shows {
         problems.extend(missing(&format!("shows.{slug}.artwork"), show.artwork.as_deref()));
         problems

@@ -10,7 +10,7 @@ use crate::output::print_json;
 
 /// Show the effective configuration and where supercut keeps its files, secrets redacted.
 ///
-/// Start here: it names the config file, the library, the output and sideload folders, the
+/// Start here: it names the config file, the library, the output and publish folders, the
 /// rules folder and every configured show. Feed URLs and API keys are never printed.
 #[derive(clap::Args)]
 pub struct Args {}
@@ -22,7 +22,8 @@ struct Report<'a> {
     exists: bool,
     library_dir: &'a Path,
     output_dir: Option<&'a Path>,
-    sideload_dir: Option<&'a Path>,
+    /// Where `plans publish` copies rendered supercuts.
+    publish_folders: &'a [PathBuf],
     /// Holds `<show>.md`, the editorial rules `rules get` prints.
     rules_dir: PathBuf,
     /// Every configured show and the settings rendering uses (feed URLs left out).
@@ -84,7 +85,7 @@ pub fn run(context: &Context, _args: Args) -> anyhow::Result<()> {
         exists: context.config_path.exists(),
         library_dir: &context.library_dir,
         output_dir: config.output_dir.as_deref(),
-        sideload_dir: config.sideload_dir.as_deref(),
+        publish_folders: &config.publish_folders,
         rules_dir: rules_dir(context),
         shows: config.shows.iter().map(|(slug, settings)| show(slug, settings)).collect(),
         transcription: &config.transcription,

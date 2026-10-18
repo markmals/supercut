@@ -13,7 +13,7 @@ const STARTER: &str = include_str!("starter-config.jsonc");
 /// Write a commented starter config file at the config path, and its JSON Schema beside it.
 ///
 /// The starter is JSONC (JSON with comments and trailing commas) and shows every setting with a
-/// comment: library, output and sideload folders, the transcription engine, loudness targets,
+/// comment: library, output and publish folders, the transcription engine, loudness targets,
 /// the Jev model, and one example show with feeds, recordings, segments and a chapter layout.
 /// Its `$schema` points at `supercut.config.schema.json`, written next to it, so editors check
 /// it as you type. Edit it, then check it with `config validate`. Refuses to overwrite a config

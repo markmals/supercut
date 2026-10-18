@@ -31,8 +31,10 @@ pub struct Config {
     pub library_dir: Option<PathBuf>,
     /// Where rendered supercuts go, one folder per show.
     pub output_dir: Option<PathBuf>,
-    /// Podcast app sideload folder that `render --sideload` copies finished supercuts into.
-    pub sideload_dir: Option<PathBuf>,
+    /// Folders `plans publish` copies each rendered supercut into, named after its title: a
+    /// podcast app's sideload folder, a synced folder for another device.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub publish_folders: Vec<PathBuf>,
     #[serde(default)]
     pub transcription: TranscriptionConfig,
     #[serde(default)]
@@ -223,8 +225,11 @@ impl Config {
     }
 
     fn expand_home_paths(&mut self) {
-        for path in [&mut self.library_dir, &mut self.output_dir, &mut self.sideload_dir] {
+        for path in [&mut self.library_dir, &mut self.output_dir] {
             expand_home(path);
+        }
+        for folder in &mut self.publish_folders {
+            *folder = home_expanded(folder);
         }
         if let Some(model) =
             self.transcription.model.as_mut().filter(|model| model.starts_with('~'))

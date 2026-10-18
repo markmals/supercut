@@ -1,6 +1,7 @@
 pub mod compare;
 pub mod draft;
 pub mod preview;
+pub mod publish;
 pub mod render;
 pub mod review;
 pub mod validate;
@@ -24,6 +25,7 @@ enum Operation {
     Compare(compare::Args),
     Preview(preview::Args),
     Render(render::Args),
+    Publish(publish::Args),
 }
 
 pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
@@ -34,5 +36,6 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
         Operation::Compare(args) => compare::run(context, args),
         Operation::Preview(args) => preview::run(context, args),
         Operation::Render(args) => render::run(context, args),
+        Operation::Publish(args) => publish::run(context, args),
     }
 }

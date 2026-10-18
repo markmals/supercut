@@ -9,6 +9,7 @@ mod library;
 mod media;
 mod output;
 mod plan;
+mod publish;
 mod render;
 mod timecode;
 mod transcribe;

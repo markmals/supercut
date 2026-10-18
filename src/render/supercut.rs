@@ -17,7 +17,6 @@ pub struct Request<'a> {
     pub plan: &'a Plan,
     /// Where to write instead of `<output_dir>/<show>/<the plan's output name>`.
     pub out: Option<PathBuf>,
-    pub sideload: bool,
     pub force: bool,
     pub dry_run: bool,
 }
@@ -31,7 +30,6 @@ pub struct Rendered {
     pub bytes: Option<u64>,
     pub bit_rate: u64,
     pub chapters: usize,
-    pub sideload: Option<PathBuf>,
     pub dry_run: bool,
 }
 
@@ -45,14 +43,9 @@ pub fn render(context: &Context, request: Request) -> anyhow::Result<Rendered> {
 
     let output = match &request.out {
         Some(path) => path.clone(),
-        None => {
-            context.config.output_dir()?.join(&resolved.library.slug).join(&request.plan.output)
-        }
+        None => default_output(context, request.plan)?,
     };
-    let sideload = sideload_path(context, &output, request.sideload)?;
-    for finished in [Some(&output), sideload.as_ref()].into_iter().flatten() {
-        refuse_to_overwrite(finished, request.force)?;
-    }
+    refuse_to_overwrite(&output, request.force)?;
 
     // An episode without segment chapters is still one chapter of the file.
     let chapters = timeline.episodes.iter().map(|span| span.chapters.len().max(1)).sum();
@@ -62,7 +55,6 @@ pub fn render(context: &Context, request: Request) -> anyhow::Result<Rendered> {
         bytes: None,
         bit_rate: resolved.format.bit_rate,
         chapters,
-        sideload,
         dry_run: request.dry_run,
     };
     if request.dry_run {
@@ -95,9 +87,6 @@ fn write_file(
     let chapters = tags::write(&partial, &tags)?;
     std::fs::rename(&partial, &planned.output)
         .with_context(|| format!("moving {} into place", planned.output.display()))?;
-    if let Some(sideload) = &planned.sideload {
-        copy_to_sideload(&planned.output, sideload)?;
-    }
 
     let probe = crate::media::probe(&planned.output)?;
     let bytes = std::fs::metadata(&planned.output)
@@ -112,23 +101,14 @@ fn write_file(
     })
 }
 
-fn sideload_path(
-    context: &Context,
-    output: &Path,
-    wanted: bool,
-) -> anyhow::Result<Option<PathBuf>> {
-    if !wanted {
-        return Ok(None);
-    }
-    let dir = context.config.sideload_dir.as_deref().ok_or_else(|| {
-        CliError::precondition("`sideload_dir` is not set in the config file")
-            .hint("supercut config get")
-    })?;
-    let name = output.file_name().expect("an output file has a name");
-    Ok(Some(dir.join(name)))
+/// Where `plans render` writes a plan's supercut unless told otherwise:
+/// `<output_dir>/<show>/<the plan's output name>`.
+pub fn default_output(context: &Context, plan: &Plan) -> anyhow::Result<PathBuf> {
+    Ok(context.config.output_dir()?.join(&plan.show).join(&plan.output))
 }
 
-fn refuse_to_overwrite(path: &Path, force: bool) -> anyhow::Result<()> {
+/// Refuses to replace a finished file unless `force` says so.
+pub fn refuse_to_overwrite(path: &Path, force: bool) -> anyhow::Result<()> {
     if force || !path.exists() {
         return Ok(());
     }
@@ -136,12 +116,4 @@ fn refuse_to_overwrite(path: &Path, force: bool) -> anyhow::Result<()> {
         .detail("path", path.display().to_string())
         .hint("pass --force to overwrite it");
     Err(conflict.into())
-}
-
-fn copy_to_sideload(output: &Path, sideload: &Path) -> anyhow::Result<()> {
-    let parent = sideload.parent().expect("a sideload file has a folder");
-    std::fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
-    std::fs::copy(output, sideload)
-        .with_context(|| format!("copying into {}", sideload.display()))?;
-    Ok(())
 }

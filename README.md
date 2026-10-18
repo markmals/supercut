@@ -15,6 +15,7 @@ flowchart LR
     draft --> review["plans validate / review / preview"]
     review -- "edit the plan" --> review
     review -- "approved" --> render["plans render"]
+    render --> publish["plans publish"]
     history["history recover"] -. "hand-made cuts to compare" .-> review
 ```
 
@@ -23,7 +24,7 @@ flowchart LR
 3. `labels create` sends ~30-second transcript windows to TypeSafe's Jev decision model, which sorts each window into one of the segments configured for the show (intro, hosts, ads, guest). Jev bills per input token; `--dry-run` prints the request count and an estimated token count without sending anything.
 4. `plans draft` turns the labels into a cut plan. It cuts every segment marked `cut`, trims each episode's opening to the end of its theme song and its ending at the credits music (or at credits read aloud before it), puts the interstitial between episodes and lays out chapters. Segments it was unsure about come back in `low_confidence`, and edges it could not place come back in `warnings`.
 5. You check the plan. `plans validate` reports errors, edges that land on sounding audio and chapters a cut left only seconds long, `plans review` lists every cut with the words heard either side of it, and `plans preview` renders a short reel of every splice. Fixes are edits to the plan's JSON.
-6. `plans render` writes the finished MP3.
+6. `plans render` writes the finished MP3, and `plans publish` copies it into the folders you listen from.
 
 ## Requirements
 
@@ -68,7 +69,7 @@ The top-level settings:
 | --- | --- |
 | `library_dir` | Downloaded audio, transcripts, labels, analysis and plans. Defaults to the platform data folder (`~/Library/Application Support/supercut/library` on macOS). |
 | `output_dir` | Where rendered supercuts go, one folder per show. Required by `plans render`. |
-| `sideload_dir` | Podcast app folder that `plans render --sideload` copies finished files into. |
+| `publish_folders` | Folders `plans publish` copies rendered supercuts into, such as a podcast app's sideload folder. |
 | `transcription` | Engine (`mlx-whisper` or `faster-whisper`), model and language. |
 | `loudness` | Target integrated loudness (default -16 LUFS) and true-peak ceiling (default -1.5 dBTP). |
 | `jev` | Endpoint, model, API key command and request concurrency for labeling. |
@@ -175,7 +176,11 @@ A cut without `end` runs to the end of the episode. `fade_out` and `fade_in` are
 
 `plans render` makes one ffmpeg pass. Each kept stretch is brought to the target loudness and faded at its edges, the interstitial plays between episodes, a limiter holds the true-peak ceiling, and the result is encoded as MP3 at the first episode's sample rate and the highest bit rate among the episodes. The file is tagged with ID3v2.3: the plan's title, the show's artwork, and every chapter in a single table of contents, because Castro reads only the first table it finds.
 
-The file goes to `<output_dir>/<show>/<output>`, or to `--out`. An existing file is only replaced with `--force`. `--sideload` also copies it into `sideload_dir`.
+The file goes to `<output_dir>/<show>/<output>`, or to `--out`. An existing file is only replaced with `--force`.
+
+### Publishing
+
+`plans publish <plan>` copies the rendered file into every folder in `publish_folders`, such as a podcast app's sideload folder, named after the plan's title: "The Neighborhood Listen: Season 9" becomes `The Neighborhood Listen - Season 9.mp3`, because apps that take sideloaded files show the file name as the episode title. `--rendered` names the file when `plans render --out` put it elsewhere, `--dry-run` lists the copies, and an existing copy is only replaced with `--force`.
 
 ## Learning from hand-made supercuts
 

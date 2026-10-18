@@ -20,10 +20,7 @@ pub struct Args {
     /// Write here instead of `<output_dir>/<show>/<the plan's output name>`.
     #[arg(long)]
     out: Option<PathBuf>,
-    /// Also copy the finished file into the configured sideload folder.
-    #[arg(long)]
-    sideload: bool,
-    /// Overwrite an existing output file or sideload copy.
+    /// Overwrite an existing output file.
     #[arg(long)]
     force: bool,
     /// Report what would be written — path, duration, bit rate, chapters — and encode nothing.
@@ -33,13 +30,7 @@ pub struct Args {
 
 pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
     let plan = Plan::load(&args.plan)?;
-    let request = Request {
-        plan: &plan,
-        out: args.out,
-        sideload: args.sideload,
-        force: args.force,
-        dry_run: args.dry_run,
-    };
+    let request = Request { plan: &plan, out: args.out, force: args.force, dry_run: args.dry_run };
     let rendered = render(context, request)?;
     print_json(&rendered)
 }

@@ -13,7 +13,7 @@ pub enum Effect {
     WritesLibrary,
     /// Writes the config file.
     WritesConfig,
-    /// Writes finished files outside the library (output and sideload folders).
+    /// Writes finished files outside the library (output and publish folders).
     WritesOutput,
     /// Reads RSS feeds or downloads audio.
     Network,
@@ -53,7 +53,7 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "config get",
         effects: &[ReadOnly],
-        output: "{config_file, exists, library_dir, output_dir, sideload_dir, rules_dir, shows: [{show, title, feeds, artwork, interstitial, themes, outros, bumpers, segments, chapters: {parts, number, title_pattern}|null}], transcription, loudness, jev}",
+        output: "{config_file, exists, library_dir, output_dir, publish_folders, rules_dir, shows: [{show, title, feeds, artwork, interstitial, themes, outros, bumpers, segments, chapters: {parts, number, title_pattern}|null}], transcription, loudness, jev}",
         example: "supercut config get",
         keywords: &[
             "context",
@@ -251,9 +251,16 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         path: "plans render",
         effects: &[WritesOutput, HeavyCompute],
-        output: "{output, duration, bytes, bit_rate, chapters, sideload, dry_run}",
+        output: "{output, duration, bytes, bit_rate, chapters, dry_run}",
         example: "supercut plans render plan.json --dry-run",
         keywords: &["export", "build", "make supercut", "mp3", "encode"],
+    },
+    Operation {
+        path: "plans publish",
+        effects: &[WritesOutput],
+        output: "{source, copies: [paths], dry_run}",
+        example: "supercut plans publish plan.json --dry-run",
+        keywords: &["sideload", "copy", "share", "castro", "podcast app", "deliver"],
     },
     Operation {
         path: "history recover",
