@@ -4,7 +4,7 @@ Agreed order: get The Neighborhood Listen (NHL) right end to end, then publishin
 
 ## The Neighborhood Listen
 
-1. NHL redux: rebuild every supercut from S01 to S11-so-far into `Podcasts/nhl-redux`, one per whole season unless the user prefers halves (a long MP3 is fine; Logic was the limit). Transcription running (Mac: S01–S07 with mlx-whisper; Tangerine: S08–S11 with faster-whisper). Then copy Tangerine's transcripts back, label (Jev, about $5), draft, check every cut against the hand-made supercuts with `plans compare`, preview, render on approval. Bonus Room #36 and the CRISIS crossover are transcribed in case the user includes them.
+1. NHL redux: rebuild every supercut from S01 to S11-so-far into `Podcasts/nhl-redux`, one per whole season (a long MP3 is fine; Logic was the limit). Transcription running on the Mac under launchd (Tangerine's S08 share was moved back; job files are backed up in `~/Library/Application Support/supercut/redux-job/`). Then, with the user present to approve 1Password, label (Jev, about $5); then draft, check every cut against the hand-made supercuts with `plans compare`, preview, render on approval. Bonus Room #36 is dropped; the CRISIS crossover closes season 10 (cuts and chapters in the show's rules).
 2. A speculative cut of S11 so far (S11E01–E02, Bonus Room #37): part of the redux.
 3. Hand cuts no recording places yet: the openings of S05E01 and Bonus Rooms #1, #8 and #10, and the endings of most of S01–S04 and Bonus Rooms #1 and #3 (their closing music differs from the S05–S10 outro).
 
