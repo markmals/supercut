@@ -27,7 +27,7 @@ flowchart LR
 
 ## Requirements
 
-- Rust 1.88 or newer.
+- Rust, installed with [rustup](https://rustup.rs). `rust-toolchain.toml` pins the version (1.99.1), and rustup uses it for every `cargo` command run inside the repo.
 - `ffmpeg` and `ffprobe` on `PATH`.
 - A Whisper engine: `mlx_whisper` on Apple silicon (`uv tool install mlx-whisper`), or `whisper-ctranslate2` on any platform (`uv tool install whisper-ctranslate2`).
 - A TypeSafe API key for `labels create`, either in `TYPESAFE_API_KEY` or printed by the command set in `jev.api_key_command`. The starter config reads it from 1Password with `op read`.
