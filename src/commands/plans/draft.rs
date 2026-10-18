@@ -11,9 +11,11 @@ use crate::output::print_json;
 /// Draft a cut plan from labeled segments: cut the show's always-cut segments and add segment chapters.
 ///
 /// Needs labels (`supercut labels create`). Every labeled segment whose kind has `cut = true`
-/// becomes a cut, its edges moved onto the pauses that fence the segment; every other segment
-/// becomes a chapter. When the show configures `themes`, each episode's opening is cut through
-/// the end of its theme song instead; the first episode is cut on to the hosts' first words.
+/// becomes a cut, its edges moved onto the pauses that fence the segment; one the labels are
+/// unsure of only when the kind's phrases fence it or it closes the episode before the outro.
+/// Every other segment becomes a chapter. When the show configures `themes`, each episode's
+/// opening is cut through the end of its theme song instead; the first episode is cut on to the
+/// hosts' first words.
 /// Writes the plan to `<library>/<show>/plans/<output stem>.json` unless `--plan` names a path,
 /// and refuses to overwrite an existing plan without `--force`.
 #[derive(clap::Args)]
