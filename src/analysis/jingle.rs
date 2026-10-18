@@ -76,9 +76,10 @@ impl Jingles {
         Ok(found.filter(closes).map(|found| JingleMatch { end: found.end.min(duration), ..found }))
     }
 
-    /// The recording that plays in the episode's last minutes, wherever it falls there.
+    /// The recording that plays in the episode's last minutes, wherever it falls there; when
+    /// several do (spoken credits, then closing music), the one that starts first.
     pub fn outro_of(&self, audio: &Path, duration: f64) -> anyhow::Result<Option<JingleMatch>> {
-        self.search(audio, duration - OUTRO_SECONDS, duration, by_score)
+        self.search(audio, duration - OUTRO_SECONDS, duration, |a, b| b.start.total_cmp(&a.start))
     }
 
     /// The preferred match among the recordings playing in `[from, to)` of the episode.
