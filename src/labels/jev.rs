@@ -142,12 +142,19 @@ pub fn estimated_tokens(question: &BuiltQuestion, state: &WindowState<'_>) -> an
     Ok(bytes as u64 / 4)
 }
 
+/// jev-driver 0.1 has no variant for a 402; it reports the status only in a `Transport` message.
+const PAYMENT_REQUIRED: &str = "unexpected status 402";
+
 /// Jev's failures carry codes agents branch on: a rejected key is not a network blip.
 fn remote_failure(error: JevError) -> anyhow::Error {
     let failed = match &error {
         JevError::Unauthorized => CliError::new(ErrorCode::Unauthenticated, error.to_string())
             .hint("check `jev.api_key_command` in the config, or set TYPESAFE_API_KEY"),
         JevError::RateLimited { .. } => CliError::new(ErrorCode::RateLimited, error.to_string()),
+        JevError::Transport(message) if message.starts_with(PAYMENT_REQUIRED) => {
+            CliError::new(ErrorCode::FailedPrecondition, error.to_string())
+                .hint("add credit to the Jev account, then rerun: labeled episodes are skipped")
+        }
         JevError::Overloaded { .. } | JevError::Transport(_) => {
             CliError::new(ErrorCode::Unavailable, error.to_string())
         }
@@ -178,4 +185,22 @@ fn api_key(settings: &JevSettings) -> anyhow::Result<String> {
         return Err(CliError::new(ErrorCode::Unauthenticated, message).hint(hint).into());
     }
     Ok(key)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn code_of(error: JevError) -> ErrorCode {
+        remote_failure(error).downcast_ref::<CliError>().expect("a CliError").code
+    }
+
+    #[test]
+    fn an_unpaid_account_is_not_worth_retrying_but_a_server_error_is() {
+        let unpaid = JevError::Transport("unexpected status 402 Payment Required: {\"error\":\"no credit\"}".into());
+        let broken = JevError::Transport("unexpected status 503 Service Unavailable: ".into());
+        assert_eq!(code_of(unpaid), ErrorCode::FailedPrecondition);
+        assert!(!ErrorCode::FailedPrecondition.retryable());
+        assert_eq!(code_of(broken), ErrorCode::Unavailable);
+    }
 }
