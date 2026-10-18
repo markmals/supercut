@@ -62,10 +62,7 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
         moment::inspect(&envelope, transcript.as_ref(), from, to, args.step, args.quiet_db);
     match args.output {
         Format::Json => crate::output::print_json(&moment),
-        Format::Text => {
-            println!("{}", moment::text(&moment));
-            Ok(())
-        }
+        Format::Text => crate::output::print_text(&format!("{}\n", moment::text(&moment))),
     }
 }
 

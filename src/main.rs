@@ -75,6 +75,9 @@ fn main() -> ExitCode {
     };
     match run(cli) {
         Ok(()) => ExitCode::SUCCESS,
+        Err(error) if error.chain().any(|cause| cause.is::<output::ReaderGone>()) => {
+            ExitCode::SUCCESS
+        }
         Err(error) => report(&error),
     }
 }

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::commands::Context;
-use crate::output::{Format, print_json};
+use crate::output::{Format, print_json, print_text};
 use crate::plan::{Plan, review};
 
 /// Summarize a cut plan for a human reviewer, with transcript context around each cut.
@@ -24,9 +24,6 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
     let review = review::review(context, &plan)?;
     match args.output {
         Format::Json => print_json(&review),
-        Format::Text => {
-            print!("{}", review::markdown(&review));
-            Ok(())
-        }
+        Format::Text => print_text(&review::markdown(&review)),
     }
 }

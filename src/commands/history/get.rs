@@ -29,9 +29,6 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
     let report = history::report::build(&show, &index, &recovery, &plan)?;
     match args.output {
         Format::Json => crate::output::print_json(&report),
-        Format::Text => {
-            print!("{}", history::report::markdown(&report));
-            Ok(())
-        }
+        Format::Text => crate::output::print_text(&history::report::markdown(&report)),
     }
 }

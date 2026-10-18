@@ -2,7 +2,7 @@ use serde::Serialize;
 
 use crate::commands::Context;
 use crate::labels;
-use crate::output::{Format, print_json};
+use crate::output::{Format, print_json, print_text};
 use crate::timecode::Time;
 
 /// Print an episode's labeled segments.
@@ -58,19 +58,18 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
     };
     match args.output {
         Format::Json => print_json(&segments),
-        Format::Text => {
-            print_segments(&segments);
-            Ok(())
-        }
+        Format::Text => print_text(&segments_text(&segments)),
     }
 }
 
-fn print_segments(segments: &Segments) {
+fn segments_text(segments: &Segments) -> String {
+    let mut text = String::new();
     for segment in &segments.segments {
         let flag = if segment.low_confidence { "  low confidence" } else { "" };
-        println!(
-            "{}-{}  {}  (p={:.2}){flag}",
+        text += &format!(
+            "{}-{}  {}  (p={:.2}){flag}\n",
             segment.start, segment.end, segment.label, segment.probability
         );
     }
+    text
 }

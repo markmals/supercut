@@ -62,8 +62,7 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
     }
 
     if args.output == Format::Text {
-        println!("{}", transcribe::render(&transcript, from, to));
-        return Ok(());
+        return output::print_text(&format!("{}\n", transcribe::render(&transcript, from, to)));
     }
     output::print_json(&Excerpt {
         episode: &args.id,
