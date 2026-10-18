@@ -8,12 +8,13 @@ use serde::Serialize;
 use crate::analysis::jingle::Jingles;
 use crate::analysis::{Envelope, episode_analysis, episode_envelope};
 use crate::commands::Context;
-use crate::config::{EpisodeName, SegmentKind, ShowConfig};
+use crate::config::{EpisodeName, ShowConfig};
 use crate::error::CliError;
 use crate::labels::also_cut::AlsoCut;
-use crate::labels::phrases::{self, Spoken};
+use crate::labels::dropped::Dropped;
+use crate::labels::phrases;
 use crate::labels::record::{LabeledSegment, LabeledUnit, Labels};
-use crate::labels::refine::{self, Anchors, Gap, Policy, Search};
+use crate::labels::refine::{self, Anchors, Gap, Search};
 use crate::labels::{closing, opening, parts};
 use crate::library::{Episode, ShowLibrary};
 use crate::plan::{Chapter, Cut, Plan, PlanEpisode};
@@ -43,8 +44,8 @@ pub struct Uncertain {
     pub start: Time,
     pub end: Time,
     pub probability: f64,
-    /// `cut` when the draft cut it anyway (the command line asked for it), `kept` when it was
-    /// left in as content.
+    /// `cut` when the draft cut it anyway (the command line named it, the show's phrases fence
+    /// it, or it closes the episode before the outro), `kept` when it was left in as content.
     pub action: &'static str,
 }
 
@@ -76,11 +77,10 @@ pub fn draft(
             .hint(format!("supercut labels create {slug} {} --force", episode.id))
             .into());
         }
-        let dropped = Dropped { kinds: &show.segments, episode: &episode.id, also: also_cut };
-        low_confidence.extend(uncertain_segments(&labels, &dropped));
         let drafted =
             plan_episode(&library, show, &recordings, episode, position == 0, &labels, also_cut)?;
         warnings.extend(unplaced(&recordings, &drafted, &episode.id));
+        low_confidence.extend(drafted.uncertain);
         planned.push(drafted.episode);
     }
     let plan = Plan { show: slug.to_owned(), title, output, interstitial: None, episodes: planned };
@@ -104,6 +104,7 @@ struct Recordings {
 
 struct Drafted {
     episode: PlanEpisode,
+    uncertain: Vec<Uncertain>,
     opened_by_theme: bool,
     /// An outro or a bumper ends the episode.
     closed_by_recording: bool,
@@ -142,14 +143,22 @@ fn plan_episode(
     let audio = library.audio_path(episode)?;
     let gaps = refine::gaps(&transcript, duration);
     let spoken = phrases::spoken(&transcript);
-    let dropped = Dropped { kinds: &show.segments, episode: &episode.id, also: also_cut };
-    let mut cuts = cuts(labels, &dropped, &gaps, &spoken, &envelope);
+    let outro = recordings.outros.outro_of(&audio, duration)?;
+    let dropped = Dropped {
+        kinds: &show.segments,
+        episode: &episode.id,
+        also: also_cut,
+        spoken: &spoken,
+        outro: outro.as_ref().map(|outro| outro.start),
+    };
+    let fates: Vec<Option<Anchors>> =
+        labels.segments.iter().map(|segment| dropped.cut(segment)).collect();
+    let mut cuts = cuts(labels, &fates, &dropped, &gaps, &envelope);
     let theme = recordings.themes.opening_of(&audio)?;
     if let Some(theme) = &theme {
         let end = opening::opening_end(theme, first_in_supercut, &envelope);
         cuts = opening::with_opening(cuts, theme, end);
     }
-    let outro = recordings.outros.outro_of(&audio, duration)?;
     if let Some(outro) = &outro {
         cuts = closing::with_outro(cuts, outro);
     }
@@ -165,8 +174,9 @@ fn plan_episode(
     let (chapters, unfit_layout) = match laid_out {
         Some(Ok(chapters)) => (chapters, None),
         Some(Err(why)) => (Vec::new(), Some(why)),
-        None => (chapters(labels, &dropped, &cuts, &episode.title), None),
+        None => (chapters(labels, &fates, &dropped, &cuts, &episode.title), None),
     };
+    let uncertain = uncertain_segments(labels, &fates, &dropped).collect();
     let closed_by_recording = outro.is_some() || bumper.is_some();
     let episode = PlanEpisode {
         id: episode.id.clone(),
@@ -175,82 +185,46 @@ fn plan_episode(
         interstitial_after: bumper.is_none(),
         note: None,
     };
-    Ok(Drafted { episode, opened_by_theme: theme.is_some(), closed_by_recording, unfit_layout })
-}
-
-/// Which labels this episode loses, and how each one's edges are placed.
-struct Dropped<'a> {
-    kinds: &'a [SegmentKind],
-    episode: &'a str,
-    also: &'a AlsoCut,
-}
-
-impl Dropped<'_> {
-    /// A cut-kind segment the labels are unsure of stays in: it is reported, not removed. One
-    /// the command line named is cut whatever its probability.
-    fn cut(&self, segment: &LabeledSegment) -> bool {
-        self.also.contains(self.episode, &segment.label)
-            || (self.kind(&segment.label).is_some_and(|kind| kind.cut)
-                && !crate::labels::uncertain(segment))
-    }
-
-    fn policy(&self, label: &str) -> Policy {
-        self.kind(label)
-            .map(|kind| Policy { start: kind.cut_start, end: kind.cut_end })
-            .unwrap_or_default()
-    }
-
-    fn title(&self, label: &str) -> Option<&str> {
-        self.kind(label).map(|kind| kind.title.as_str())
-    }
-
-    fn kind(&self, label: &str) -> Option<&SegmentKind> {
-        self.kinds.iter().find(|kind| kind.label == label)
-    }
-
-    /// The edges the segment kind's phrases pin down around `bounds`, if it names any.
-    fn anchors(&self, label: &str, bounds: (f64, f64), spoken: &[Spoken]) -> Anchors {
-        let Some(kind) = self.kind(label) else { return Anchors::default() };
-        let start_after = phrases::start_after(spoken, &kind.after_phrases, bounds.0);
-        let end_before = phrases::end_before(
-            spoken,
-            &kind.before_phrases,
-            start_after.unwrap_or(bounds.0),
-            bounds.1,
-        );
-        Anchors { start_after, end_before }
-    }
+    Ok(Drafted {
+        episode,
+        uncertain,
+        opened_by_theme: theme.is_some(),
+        closed_by_recording,
+        unfit_layout,
+    })
 }
 
 fn cuts(
     labels: &Labels,
+    fates: &[Option<Anchors>],
     dropped: &Dropped<'_>,
     gaps: &[Gap],
-    spoken: &[Spoken],
     envelope: &Envelope,
 ) -> Vec<Cut> {
     let mut cuts: Vec<Cut> = Vec::new();
     let last = labels.segments.len().saturating_sub(1);
-    for (index, segment) in
-        labels.segments.iter().enumerate().filter(|(_, segment)| dropped.cut(segment))
-    {
+    for (index, (segment, anchors)) in labels.segments.iter().zip(fates).enumerate() {
+        let Some(anchors) = *anchors else { continue };
         let bounds = (segment.start.seconds(), segment.end.seconds());
         let search = Search {
             around_start: neighbourhood(&labels.units, bounds.0),
             around_end: neighbourhood(&labels.units, bounds.1),
         };
-        let anchors = dropped.anchors(&segment.label, bounds, spoken);
         let mut edges =
             refine::refine(bounds, dropped.policy(&segment.label), anchors, search, gaps, envelope);
         // Nothing follows the episode's last segment for its end edge to spare: a word heard
-        // inside it (Whisper hears "you" in closing music) is not the hosts coming back.
-        if index == last {
+        // inside it (Whisper hears "you" in closing music) is not the hosts coming back. A
+        // closing spoken before the outro runs out the episode, outro and credits with it.
+        if dropped.closes(segment) {
+            edges.end = f64::INFINITY;
+            edges.fade_in = None;
+        } else if index == last {
             edges.end = edges.end.max(bounds.1);
             edges.fade_in = None;
         }
         let reason = format!("segment {} (p={:.2})", segment.label, segment.probability);
-        let start = match cuts.last().and_then(|last| last.end) {
-            Some(previous) => edges.start.max(previous.seconds()),
+        let start = match cuts.last() {
+            Some(previous) => edges.start.max(previous.end.map_or(f64::INFINITY, Time::seconds)),
             None => edges.start,
         };
         // The cut before this one already reaches past it; say so rather than cutting twice.
@@ -262,7 +236,7 @@ fn cuts(
         }
         cuts.push(Cut {
             start: Time(start),
-            end: Some(Time(edges.end)),
+            end: edges.end.is_finite().then_some(Time(edges.end)),
             reason,
             fade_out: edges.fade_out,
             fade_in: edges.fade_in,
@@ -304,12 +278,14 @@ fn join(previous: &mut Cut, next: Cut) {
 /// hierarchy, so each title names its episode after its segment ("Guest: <episode>").
 fn chapters(
     labels: &Labels,
+    fates: &[Option<Anchors>],
     dropped: &Dropped<'_>,
     cuts: &[Cut],
     episode_title: &str,
 ) -> Vec<Chapter> {
     let mut chapters: Vec<Chapter> = Vec::new();
-    for segment in labels.segments.iter().filter(|segment| !dropped.cut(segment)) {
+    let kept = labels.segments.iter().zip(fates).filter(|(_, fate)| fate.is_none());
+    for (segment, _) in kept {
         let Some(title) = dropped.title(&segment.label) else {
             continue;
         };
@@ -381,22 +357,22 @@ fn neighbourhood(units: &[LabeledUnit], time: f64) -> (f64, f64) {
 /// cut). An unsure boundary between two kept kinds changes nothing in the supercut.
 fn uncertain_segments<'a>(
     labels: &'a Labels,
+    fates: &'a [Option<Anchors>],
     dropped: &'a Dropped<'a>,
 ) -> impl Iterator<Item = Uncertain> + 'a {
-    let at_stake = |segment: &&LabeledSegment| {
-        dropped.kind(&segment.label).is_some_and(|kind| kind.cut)
-            || dropped.also.contains(dropped.episode, &segment.label)
-    };
-    labels.segments.iter().filter(|segment| crate::labels::uncertain(segment)).filter(at_stake).map(
-        move |segment: &LabeledSegment| Uncertain {
-            episode: labels.episode.clone(),
-            label: segment.label.clone(),
-            start: segment.start,
-            end: segment.end,
-            probability: segment.probability,
-            action: if dropped.cut(segment) { "cut" } else { "kept" },
-        },
-    )
+    let decided = labels
+        .segments
+        .iter()
+        .zip(fates)
+        .filter(|(segment, _)| crate::labels::uncertain(segment) && dropped.at_stake(segment));
+    decided.map(move |(segment, fate): (&LabeledSegment, &Option<Anchors>)| Uncertain {
+        episode: labels.episode.clone(),
+        label: segment.label.clone(),
+        start: segment.start,
+        end: segment.end,
+        probability: segment.probability,
+        action: if fate.is_some() { "cut" } else { "kept" },
+    })
 }
 
 #[cfg(test)]

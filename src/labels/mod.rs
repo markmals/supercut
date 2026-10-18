@@ -4,6 +4,7 @@
 mod also_cut;
 mod closing;
 mod draft;
+mod dropped;
 mod fine;
 mod jev;
 mod opening;

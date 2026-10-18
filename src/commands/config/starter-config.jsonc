@@ -58,7 +58,8 @@
       // is cut on to the hosts' first words.
       "themes": ["~/Music/supercut/example-show-theme.flac"],
       // Recordings of the first notes of the music that leads into the credits, cut from just
-      // after a goodbye. `plans draft` cuts each episode from where one starts to the end.
+      // after a goodbye. `plans draft` cuts each episode from where one starts to the end, or
+      // from where the labels hear credits read aloud more than 15 s before it.
       "outros": ["~/Music/supercut/example-show-outro.flac"],
       // Recordings of jingles that close some episodes, e.g. a bonus series' own sign-off. An
       // episode that ends with one keeps it, and no interstitial plays after that episode.
@@ -92,7 +93,8 @@
           // after it).
           "cut_end": "before-next-speech",
           // Phrases the hosts say right before and right after the segment. When present they
-          // decide the cut's edges more precisely than the labels can.
+          // decide the cut's edges more precisely than the labels can, and a segment the labels
+          // are unsure of is cut only when one of each fences it.
           "after_phrases": ["we'll be right back"],
           "before_phrases": ["welcome back"],
         },

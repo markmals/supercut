@@ -6,21 +6,40 @@ use crate::analysis::jingle::JingleMatch;
 use crate::plan::Cut;
 use crate::timecode::Time;
 
-/// `cuts` ending in one cut from the outro to the end of the file. Cuts reaching into the outro
+/// Labels read the hosts' goodbye as the closing for a few seconds before the outro (up to 9 s
+/// in The Neighborhood Listen). A closing labeled to begin longer before it than this was spoken
+/// before the music, as credits read aloud are.
+const SPOKEN_CLOSING_SECONDS: f64 = 15.0;
+
+/// Whether a stretch from `start` to `end` is a closing spoken before the outro that starts at
+/// `outro`: it runs into the outro and began well before it.
+pub fn spoken_before(start: f64, end: f64, outro: f64) -> bool {
+    end > outro && outro - start > SPOKEN_CLOSING_SECONDS
+}
+
+/// `cuts` ending in one cut to the end of the file: from a closing spoken before the outro (a
+/// cut already running to the end), or else from the outro. Other cuts reaching into the outro
 /// give way to it: they are the labels' reading of the credits, and the outro says exactly where
 /// they begin.
 pub fn with_outro(cuts: Vec<Cut>, outro: &JingleMatch) -> Vec<Cut> {
     let name = outro.recording.file_stem().unwrap_or_default().to_string_lossy();
-    let ending = Cut {
-        start: Time(outro.start),
-        end: None,
-        reason: format!("outro {name} and the credits after it"),
-        fade_out: None,
-        fade_in: None,
+    let (before, reaching): (Vec<Cut>, Vec<Cut>) =
+        cuts.into_iter().partition(|cut| cut.end.is_some_and(|end| end.seconds() <= outro.start));
+    let spoken = reaching.into_iter().find(|cut| cut.end.is_none());
+    let ending = match spoken {
+        Some(closing) => Cut {
+            reason: format!("{} through the outro {name} and the credits after it", closing.reason),
+            ..closing
+        },
+        None => Cut {
+            start: Time(outro.start),
+            end: None,
+            reason: format!("outro {name} and the credits after it"),
+            fade_out: None,
+            fade_in: None,
+        },
     };
-    let before =
-        cuts.into_iter().filter(|cut| cut.end.is_some_and(|end| end.seconds() <= outro.start));
-    before.chain(std::iter::once(ending)).collect()
+    before.into_iter().chain(std::iter::once(ending)).collect()
 }
 
 /// `cuts` with the bumper left in: a cut reaching into it now ends where it begins, and one
@@ -72,6 +91,19 @@ mod tests {
             (None, None),
             "the outro starts in the hush after the goodbye"
         );
+    }
+
+    #[test]
+    fn credits_read_aloud_before_the_outro_start_the_ending() {
+        let outro = JingleMatch {
+            recording: "/outros/show.flac".into(),
+            start: 4078.3,
+            end: 4080.4,
+            score: 0.97,
+        };
+        // An ad, then credits read aloud from the hush after the goodbye, cut to the end.
+        let ending = with_outro(vec![cut(1760.0, Some(1830.0)), cut(4049.3, None)], &outro);
+        assert_eq!(spans(&ending), vec![(1760.0, Some(1830.0)), (4049.3, None)]);
     }
 
     #[test]

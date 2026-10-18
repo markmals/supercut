@@ -71,29 +71,81 @@ pub fn end_before(
         .min_by(f64::total_cmp)
 }
 
+/// The stretch the show's phrases fence around a segment labeled `bounds`, as (end of the phrase
+/// that announces it, start of the phrase that closes it): the first of `before` said within
+/// reach, after the last of `after` said ahead of it. A stretch the hosts announce and close is
+/// a segment of its own however unsure the labels are of it, provided most of it lies where they
+/// put the segment.
+pub fn fence(
+    words: &[Spoken],
+    after: &[String],
+    before: &[String],
+    bounds: (f64, f64),
+) -> Option<(f64, f64)> {
+    let reach = (bounds.0 - REACH_SECONDS)..=(bounds.1 + REACH_SECONDS);
+    let said = |phrases: &[String], pick: fn((f64, f64)) -> f64| -> Vec<f64> {
+        let found = phrases.iter().flat_map(|phrase| occurrences(words, phrase)).map(pick);
+        found.filter(|time| reach.contains(time)).collect()
+    };
+    let announced = said(after, |(_, end)| end);
+    let mut closed = said(before, |(start, _)| start);
+    closed.sort_by(f64::total_cmp);
+    let fenced = closed.into_iter().find_map(|closing| {
+        let announcing = announced.iter().copied().filter(|end| *end < closing);
+        announcing.max_by(f64::total_cmp).map(|announcing| (announcing, closing))
+    })?;
+    let inside = fenced.1.min(bounds.1) - fenced.0.max(bounds.0);
+    (inside >= (fenced.1 - fenced.0) / 2.0).then_some(fenced)
+}
+
+/// Words said from the given times, each lasting 0.3 s.
+#[cfg(test)]
+pub fn said(words: &[(&str, f64)]) -> Vec<Spoken> {
+    let word = |(text, start): &(&str, f64)| Spoken {
+        start: *start,
+        end: start + 0.3,
+        text: normalize(text),
+    };
+    words.iter().map(word).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transcript::{Segment, Word};
 
-    fn said(words: &[(&str, f64)]) -> Vec<Spoken> {
-        let words: Vec<Word> = words
-            .iter()
-            .map(|(text, start)| Word {
-                start: *start,
-                end: start + 0.3,
-                text: (*text).into(),
-                probability: None,
-            })
-            .collect();
-        let transcript = Transcript {
-            engine: String::new(),
-            model: String::new(),
-            language: String::new(),
-            unreliable: Vec::new(),
-            segments: vec![Segment { start: 0.0, end: 0.0, text: String::new(), words }],
-        };
-        spoken(&transcript)
+    fn phrases(phrases: &[&str]) -> Vec<String> {
+        phrases.iter().map(|phrase| (*phrase).to_owned()).collect()
+    }
+
+    #[test]
+    fn the_last_announcement_before_the_hosts_return_fences_the_break() {
+        let words = said(&[
+            // The hosts come back from an earlier break before announcing this one, twice.
+            ("Welcome", 1705.0),
+            ("back.", 1705.3),
+            ("We'll", 1747.7),
+            ("be", 1748.0),
+            ("back.", 1748.3),
+            ("Be", 1760.0),
+            ("right", 1760.3),
+            ("back!", 1760.6),
+            ("Hi,", 1764.6),
+            ("Welcome", 1810.0),
+            ("back.", 1810.3),
+        ]);
+        let (after, before) = (phrases(&["be back", "be right back"]), phrases(&["welcome back"]));
+        let fenced = fence(&words, &after, &before, (1745.0, 1815.0)).unwrap();
+        assert!((fenced.0 - 1760.9).abs() < 1e-9 && fenced.1 == 1810.0, "{fenced:?}");
+    }
+
+    #[test]
+    fn a_fence_mostly_outside_the_labeled_segment_belongs_to_another() {
+        // A post the hosts read aloud until 1747 s, then the break they announce.
+        let words =
+            said(&[("be", 1748.0), ("back.", 1748.3), ("Welcome", 1810.0), ("back.", 1810.3)]);
+        let (after, before) = (phrases(&["be back"]), phrases(&["welcome back"]));
+        assert_eq!(fence(&words, &after, &before, (1690.0, 1747.0)), None);
+        assert!(fence(&words, &after, &before, (1752.0, 1808.0)).is_some());
     }
 
     #[test]

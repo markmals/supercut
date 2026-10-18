@@ -21,7 +21,7 @@ flowchart LR
 1. `episodes sync` reads the show's feeds into an episode index. `episodes download` fetches the audio, and `episodes adopt` links in audio files you already have.
 2. `transcripts create` writes word-timed transcripts with mlx-whisper on Apple silicon or faster-whisper elsewhere. Expect about 5 minutes per hour of audio with mlx-whisper, and about 12 with faster-whisper on a fast CPU.
 3. `labels create` sends ~30-second transcript windows to TypeSafe's Jev decision model, which sorts each window into one of the segments configured for the show (intro, hosts, ads, guest). Jev bills per input token; `--dry-run` prints the request count and an estimated token count without sending anything.
-4. `plans draft` turns the labels into a cut plan. It cuts every segment marked `cut`, trims each episode's opening to the end of its theme song and its ending at the credits music, puts the interstitial between episodes and lays out chapters. Segments it was unsure about come back in `low_confidence`, and edges it could not place come back in `warnings`.
+4. `plans draft` turns the labels into a cut plan. It cuts every segment marked `cut`, trims each episode's opening to the end of its theme song and its ending at the credits music (or at credits read aloud before it), puts the interstitial between episodes and lays out chapters. Segments it was unsure about come back in `low_confidence`, and edges it could not place come back in `warnings`.
 5. You check the plan. `plans validate` reports errors and edges that land on sounding audio, `plans review` lists every cut with the words heard either side of it, and `plans preview` renders a short reel of every splice. Fixes are edits to the plan's JSON.
 6. `plans render` writes the finished MP3.
 
@@ -83,7 +83,7 @@ The top-level settings:
 | `artwork` | Cover art embedded in rendered supercuts. |
 | `interstitial` | Clip played between episodes. |
 | `themes` | Recordings of the theme songs that open episodes. Each episode is cut through the end of the one it plays, except the first in a supercut, which is cut to the hosts' first words. |
-| `outros` | Recordings of the first notes of the credits music. Each episode is cut from where one starts. |
+| `outros` | Recordings of the first notes of the credits music. Each episode is cut from where one starts, or from where the labels hear credits read aloud more than 15 s before it. |
 | `bumpers` | Jingles that close some episodes. An episode ending with one keeps it, and no interstitial follows it. |
 | `segments` | The show's recurring segments: what the labeler sorts stretches into and what gets cut. |
 | `chapters` | Optional chapter layout. Without it, each labeled segment gets its own chapter. |
@@ -105,7 +105,7 @@ A segment from the starter config:
 }
 ```
 
-Only `label` and `describe` reach the classifier, so `describe` should say what the segment sounds like; changing any other field needs no relabeling. `cut_start` and `cut_end` choose which side of a surrounding jingle the cut lands on. `after_phrases` and `before_phrases` are what the hosts say going into and coming out of the segment, and they place the cut's edges more precisely than the labels can.
+Only `label` and `describe` reach the classifier, so `describe` should say what the segment sounds like; changing any other field needs no relabeling. `cut_start` and `cut_end` choose which side of a surrounding jingle the cut lands on. `after_phrases` and `before_phrases` are what the hosts say going into and coming out of the segment, and they place the cut's edges more precisely than the labels can: a cut starts after the last `after_phrases` phrase said before the `before_phrases` phrase that ends it. A segment the labels are unsure of stays in, reported in `low_confidence`, unless the two phrases fence it.
 
 The `chapters` layout gives each episode one chapter per stretch between its breaks, titled from templates filled with the feed's season and episode numbers and with named groups matched from the episode title. The starter config has a worked example.
 
