@@ -4,9 +4,9 @@ Agreed order: get The Neighborhood Listen (NHL) right end to end, then publishin
 
 ## The Neighborhood Listen
 
-1. NHL redux: rebuild every supercut from S01 to S11-so-far into `Podcasts/nhl-redux`, one per whole season (a long MP3 is fine; Logic was the limit). Transcription running on the Mac under launchd (Tangerine's S08 share was moved back; job files are backed up in `~/Library/Application Support/supercut/redux-job/`). Then, with the user present to approve 1Password, label (Jev, about $5); then draft, check every cut against the hand-made supercuts with `plans compare`, preview, render on approval. Bonus Room #36 is dropped; the CRISIS crossover closes season 10 (cuts and chapters in the show's rules).
+1. NHL redux: rebuild every supercut from S01 to S11-so-far into `Podcasts/nhl-redux`, one per whole season (a long MP3 is fine; Logic was the limit). All 149 episodes are transcribed; 133 are labeled. Labeling stopped on Jev's 402 Payment Required with 16 episodes left: once the user adds credit, rerun `labels create` with them present to approve 1Password (labeled episodes are skipped). Then draft, check every cut against the hand-made supercuts with `plans compare`, preview, render on approval. Bonus Room #36 is dropped; the CRISIS crossover closes season 10 (cuts and chapters in the show's rules).
 2. A speculative cut of S11 so far (S11E01–E02, Bonus Room #37): part of the redux.
-3. Hand cuts no recording places yet: the openings of S05E01 and Bonus Rooms #1, #8 and #10, and the endings of most of S01–S04 and Bonus Rooms #1 and #3 (their closing music differs from the S05–S10 outro).
+3. Hand cuts no recording places yet: the openings of S05E01 and Bonus Rooms #1, #8 and #10; the endings of S04E03, E04, E12, E13 and Bonus Rooms #1 and #3; and S03E06–E09, E11 and E13, whose credits are read aloud so the draft cuts 29 s late without warning.
 
 ## Publishing
 
