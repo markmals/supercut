@@ -243,3 +243,7 @@ cargo test
 ```
 
 Some tests encode and probe audio, so they need `ffmpeg` and `ffprobe` on `PATH`. Work in progress and known gaps are in [BACKLOG.md](BACKLOG.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
