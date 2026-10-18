@@ -209,7 +209,7 @@ pub const OPERATIONS: &[Operation] = &[
         path: "plans draft",
         effects: &[WritesLibrary],
         output: "{plan, episodes, cuts, low_confidence: [{episode, label, start, end, probability, action}], warnings: [...]}; a warning names an opening, ending or chapter layout to place by hand",
-        example: "supercut plans draft the-neighborhood-listen s10e01 s10e02 --title \"NHL S10 pt 1\" --output nhl-s10-pt-1.mp3",
+        example: "supercut plans draft the-neighborhood-listen s10e01 s10e02 --title \"NHL S10 pt 1\" --file-name nhl-s10-pt-1.mp3",
         keywords: &[
             "create plan",
             "cut list",

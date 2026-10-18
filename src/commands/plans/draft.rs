@@ -16,8 +16,8 @@ use crate::output::print_json;
 /// Every other segment becomes a chapter. When the show configures `themes`, each episode's
 /// opening is cut through the end of its theme song instead; the first episode is cut on to the
 /// hosts' first words.
-/// Writes the plan to `<library>/<show>/plans/<output stem>.json` unless `--plan` names a path,
-/// and refuses to overwrite an existing plan without `--force`.
+/// Writes the plan to `<library>/<show>/plans/<file name stem>.json` unless `--plan` names a
+/// path, and refuses to overwrite an existing plan without `--force`.
 #[derive(clap::Args)]
 pub struct Args {
     /// Show slug, as listed by `supercut shows list`.
@@ -30,15 +30,15 @@ pub struct Args {
     #[arg(long)]
     title: String,
 
-    /// File name of the rendered supercut, e.g. `nhl-s10-pt-1.mp3`.
+    /// File name of the rendered supercut (the plan's `output`), e.g. `nhl-s10-pt-1.mp3`.
     #[arg(long)]
-    output: String,
+    file_name: String,
 
     /// Also cut every segment with this label from this episode, e.g. `s10e04=guest`. Repeatable.
     #[arg(long = "also-cut", value_name = "EPISODE=LABEL")]
     also_cut: Vec<String>,
 
-    /// Write the plan here instead of `<library>/<show>/plans/<output stem>.json`.
+    /// Write the plan here instead of `<library>/<show>/plans/<file name stem>.json`.
     #[arg(long)]
     plan: Option<PathBuf>,
 
@@ -67,7 +67,7 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
         .filter(|episode| chosen.iter().any(|one| one.id == episode.id))
         .collect();
 
-    let path = labels::plan_path(&library, &args.output, args.plan);
+    let path = labels::plan_path(&library, &args.file_name, args.plan);
     if path.exists() && !args.force {
         return Err(CliError::conflict(format!("{} already exists", path.display()))
             .hint("pass --force to overwrite it, or --plan to write elsewhere")
@@ -75,7 +75,8 @@ pub fn run(context: &Context, args: Args) -> anyhow::Result<()> {
     }
     let show = context.config.show(&args.show)?;
     let also_cut = AlsoCut::parse(&args.also_cut, &episodes, &show.segments)?;
-    let draft = labels::draft(context, &args.show, &episodes, args.title, args.output, &also_cut)?;
+    let draft =
+        labels::draft(context, &args.show, &episodes, args.title, args.file_name, &also_cut)?;
     write_json_atomically(&path, &draft.plan)?;
     print_json(&Receipt {
         plan: path.display().to_string(),

@@ -123,7 +123,7 @@ supercut transcripts create the-neighborhood-listen s10e01 s10e02
 supercut labels create the-neighborhood-listen s10e01 s10e02 --dry-run
 supercut labels create the-neighborhood-listen s10e01 s10e02
 supercut plans draft the-neighborhood-listen s10e01 s10e02 \
-  --title "NHL S10 pt 1" --output nhl-s10-pt-1.mp3 --plan nhl-s10-pt-1.json
+  --title "NHL S10 pt 1" --file-name nhl-s10-pt-1.mp3 --plan nhl-s10-pt-1.json
 supercut plans validate nhl-s10-pt-1.json
 supercut plans review nhl-s10-pt-1.json --output text
 supercut plans preview nhl-s10-pt-1.json
@@ -131,7 +131,7 @@ supercut plans render nhl-s10-pt-1.json --dry-run
 supercut plans render nhl-s10-pt-1.json
 ```
 
-Without `--plan`, `plans draft` writes the plan to `<library>/<show>/plans/<output stem>.json`. `--also-cut s10e02=guest` cuts every `guest` segment from that one episode even though the show keeps guests elsewhere; it can be repeated.
+Without `--plan`, `plans draft` writes the plan to `<library>/<show>/plans/<file name stem>.json`. `--also-cut s10e02=guest` cuts every `guest` segment from that one episode even though the show keeps guests elsewhere; it can be repeated.
 
 When a cut needs a closer look, `transcripts get <show> <id> --from 28:00 --to 31:00 --output text` prints what was said around it, and `episodes inspect <show> <id> --at 29:20` prints word timings, levels and quiet spans for placing an edge.
 
@@ -191,7 +191,7 @@ It writes the recovery and a plan that reproduces the export to the show's `hist
 
 ## Output and errors
 
-Results go to stdout as JSON, and progress goes to stderr. Several read commands take `--output text` for a readable view. A failure prints `{"error": {"code", "message", "retryable", "hint"}}` on stderr and exits non-zero:
+Results go to stdout as JSON, and progress goes to stderr. Several read commands take `--output text` for a readable view; `--output` always picks a format, and the commands that write a file name it with `--out` (or, for the rendered supercut a plan names, `plans draft --file-name`). A failure prints `{"error": {"code", "message", "retryable", "hint"}}` on stderr and exits non-zero:
 
 | Code | Exit status | Meaning |
 | --- | --- | --- |
