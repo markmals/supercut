@@ -16,7 +16,7 @@ Before declaring work done, `cargo fmt --check`, the clippy command above and `c
 
 `rust-toolchain.toml` pins the compiler. A `RUSTUP_TOOLCHAIN` environment variable overrides it; `rustup show active-toolchain` tells you which one is in use.
 
-Tests in `src/render/tags/tests.rs` and `src/analysis/mod.rs` run `ffmpeg` and `ffprobe`. No test reaches the network or the Jev API.
+Tests in `src/render/tags/tests.rs`, `src/analysis/mod.rs` and `src/analysis/jingle.rs` run `ffmpeg` and `ffprobe`. No test reaches the network or the Jev API.
 
 ## Real data
 
