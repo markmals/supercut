@@ -5,9 +5,9 @@ Agreed order: get The Neighborhood Listen (NHL) right end to end, then publishin
 ## The Neighborhood Listen
 
 1. NHL redux: every season from S01 to S11-so-far is rendered into `Podcasts/nhl-redux`, one file per season (about 177 hours; S11 so far is Bonus Room #37 and S11E01–E02), from the plans `plans/the-neighborhood-listen-S01.json` … `S11.json`. The plans were reconciled with the hand-made cuts (median edge differences 0.00–0.17 s; openings deliberately stay at the theme's end) and carry the user's answers on the judgment calls, which are in the show's rules. Bonus Room #36 is dropped; the CRISIS crossover closes season 10. Next: the user listens and reports anything that sounds wrong.
-2. Hand cuts no recording places yet: the openings of S05E01 and Bonus Rooms #1, #8 and #10; the endings of S04E03, E04, E12, E13 and Bonus Rooms #1 and #3; and S03E06–E09, E11 and E13, whose credits are read aloud so the draft cuts 29 s late without warning.
-3. Ad-break ends: the hand-made cuts end inside the return sting, 1–5 s before "welcome back"; the draft ends just before "welcome back". Neither `cut_end` setting reproduces the hand-made splices (tested on S06 and S10: about half the ends stay more than 1 s off either way), so every draft's break ends are moved by hand. The return sting is a recurring recording; a configured `stings` list could place these ends the way `outros` places the credits cut.
-4. Missed second ads: the draft kept a real classified ad the labels were unsure of (p 0.54–0.67) in S01E04, S01E13, S02E02, S02E11, S05E02, S05E05, S06E08, S06E12, S07E02, S07E09, S09E03, S09E07 and S10E09. A low-confidence `classified` fenced by the show's phrases ("be right back" before, "welcome back" after) could be cut rather than only reported.
+2. Break ends lose the hosts' chatter: classified cuts now end right after the ad (`cut_end: after-own-speech`, keeping the return sting), but in the last pause before the closing phrase. In about one hand-made break in seven the cut ends in an earlier pause, mostly to keep talk between the ad and "welcome back" ("Doug, do you want to bring us back?", S01–S04); the draft cuts that talk. There is no single return sting to place ends by: covering the 153 hand-made break ends takes 21 recordings, and the ends vary by about ±1.5 s against the same one.
+3. Ads no phrase fences: the draft still keeps the unsure second ads of S01E04 and S07E02 (no closing phrase after them) and the first of S05E02 (announced "we're going to take a break. When we come back…"; adding "take a break" pulled other break starts early).
+4. Words Whisper stretches over music hide pauses: S02E11's "welcome" spans the 5 s return sting, so the break's cut ends at the sting's start and anchors on the wrong time. `refine::gaps` trusts every word's timing.
 
 ## Publishing
 
@@ -20,6 +20,7 @@ Agreed order: get The Neighborhood Listen (NHL) right end to end, then publishin
 - That's Funny: needs its feed URL.
 - The Headgum Podcast: needs its feed URL; hand-made collections 1–70 exist in `Podcasts/the-headgum-podcast/` to learn from.
 - If I Were You: needs its feed URL; collection 1–10 exists in `Podcasts/if-i-were-you/`.
+- supercut must stay generic: each show's specifics belong in its config and rules, not the code. Some constants are tuned on NHL alone: the theme-to-talk pause (`labels/opening.rs`), the 15 s lead that marks credits read aloud (`labels/closing.rs`), and the edge-search weights (`labels/refine.rs`). Check them against the second show's hand-made supercuts before trusting them, and make one a setting only where that show needs a different value.
 
 ## Housekeeping
 
